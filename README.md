@@ -1,4 +1,5 @@
 # Arys Editor
+![Arys Editor Logo](build/icons/Arys_512.png)
 
 Arys é um editor de código moderno, multiplataforma e open source, inspirado nos melhores editores do mercado. Ele oferece destaque de sintaxe para várias linguagens, preview de Markdown, suporte a PDF, gerenciamento de arquivos e uma interface amigável com mascote interativo.
 
