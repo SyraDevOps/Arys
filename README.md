@@ -30,7 +30,7 @@ Arys é um editor de código moderno, multiplataforma e open source, inspirado n
 ### Instalação
 
 ```bash
-git clone https://github.com/seu-usuario/arys.git
+git clone https://github.com/SyraDevOps/arys.git
 cd arys
 npm install
 ```
