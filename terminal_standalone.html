@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Terminal Syra</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #1e1e1e;
+      color: white;
+      height: 100%;
+      font-family: monospace;
+      overflow: hidden;
+    }
+    #terminal {
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+  </style>
+  <link rel="stylesheet" href="./node_modules/xterm/css/xterm.css" />
+</head>
+<body>
+  <div id="terminal"></div>
+
+  <script>
+    const { Terminal } = require('xterm');
+    const { ipcRenderer } = require('electron');
+
+    const term = new Terminal({
+      cursorBlink: true,
+      theme: {
+        background: '#1e1e1e',
+        foreground: '#ffffff',
+        cursor: '#7b68ee'
+      },
+      fontFamily: '"Fira Code", monospace',
+    });
+
+    term.open(document.getElementById('terminal'));
+    term.focus();
+
+    let buffer = "";
+    
+    // ** MUDANÇA IMPORTANTE: Obter o diretório da janela principal **
+    const params = new URLSearchParams(window.location.search);
+    const cwd = decodeURIComponent(params.get('cwd'));
+
+    const prompt = `\r\n\x1b[1;32mPS \x1b[36m${cwd}\x1b[0m\x1b[1;32m> \x1b[0m`;
+    term.write(`Terminal Syra${prompt}`);
+
+    term.onData(data => {
+      const code = data.charCodeAt(0);
+      if (code === 13) { // ENTER
+        term.write('\r\n');
+        // ** MUDANÇA IMPORTANTE: Envia o comando E o diretório **
+        ipcRenderer.send('executar-comando', { comando: buffer, cwd: cwd });
+        buffer = "";
+      } else if (code === 127) { // BACKSPACE
+        if (buffer.length > 0) {
+          buffer = buffer.slice(0, -1);
+          term.write('\b \b');
+        }
+      } else if (code >= 32) {
+        buffer += data;
+        term.write(data);
+      }
+    });
+
+    // Recebe a saída do comando executado
+    ipcRenderer.on('saida-comando', (event, saida) => {
+      const formattedOutput = saida.replace(/\r?\n/g, '\r\n').trimEnd();
+      term.write(formattedOutput);
+      term.write(prompt);
+    });
+  </script>
+</body>
+</html>

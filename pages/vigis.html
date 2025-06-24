@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- PASSO 1: Mude o título para o nome da sua ferramenta -->
+    <title>Nome da Ferramenta</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Estilos padrão para consistência com o restante do aplicativo */
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d2d;
+            --border-color: #3c3c3c;
+            --text-primary: #d4d4d4;
+            --text-secondary: #cccccc;
+            --text-muted: #858585;
+            --accent-color: #7b68ee;
+            --hover-bg: #3a3d41;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            user-select: none;
+            overflow: hidden; /* Evita rolagem no corpo da página */
+        }
+
+        .page-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0; /* Impede que o header encolha */
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .back-button:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .back-button svg {
+            width: 24px;
+            height: 24px;
+            stroke-width: 2;
+        }
+
+        .page-title {
+            font-size: 1.5em;
+            font-weight: 500;
+            margin: 0 0 0 15px; /* Remove margem padrão e adiciona espaço à esquerda */
+        }
+
+        .page-content {
+            flex-grow: 1; /* Faz o conteúdo ocupar todo o espaço restante */
+            padding: 30px;
+            overflow-y: auto; /* Adiciona rolagem apenas se o conteúdo for maior que a tela */
+        }
+
+        /* Você pode adicionar estilos específicos para o conteúdo aqui */
+        .page-content h2 {
+            font-weight: 400;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page-container">
+        <header class="page-header">
+            <button class="back-button" onclick="window.location.href='../tools.html'" title="Voltar ao Menu">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <h1 class="page-title">
+                <!-- PASSO 2: Coloque o título da ferramenta aqui -->
+                Nome da Ferramenta
+            </h1>
+        </header>
+
+        <main class="page-content">
+            <!-- PASSO 3: Coloque todo o conteúdo específico da sua ferramenta aqui dentro -->
+            
+            <h2>Bem-vindo!</h2>
+            <p>Este é o espaço para o conteúdo da sua ferramenta. Você pode adicionar formulários, tabelas, gráficos ou qualquer outro elemento HTML que precisar.</p>
+            <p>O estilo, as cores e a fonte já estão configurados para corresponder ao resto do aplicativo Arys.</p>
+
+            <!-- Fim da área de conteúdo específico -->
+        </main>
+    </div>
+
+</body>
+</html>

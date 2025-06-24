@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Avançado de Câmeras IP</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Bibliotecas Externas -->
+    <link href="https://cdn.jsdelivr.net/npm/gridstack@9.3.0/dist/gridstack.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gridstack@9.3.0/dist/gridstack-all.js"></script>
+    <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+
+    <style>
+        :root {
+            --bg-primary: #1e1e1e; --bg-secondary: #252526; --bg-tertiary: #2d2d2d;
+            --border-color: #3c3c3c; --text-primary: #d4d4d4; --text-secondary: #cccccc;
+            --text-muted: #858585; --accent-color: #7b68ee; --hover-bg: #3a3d41;
+            --danger-color: #f44336; --recording-color: #e53935;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            background-color: var(--bg-primary); color: var(--text-primary);
+            font-family: 'Inter', sans-serif; overflow: hidden;
+        }
+        .page-container { display: flex; flex-direction: column; height: 100vh; }
+        .page-header {
+            display: flex; align-items: center; padding: 10px 20px;
+            border-bottom: 1px solid var(--border-color); flex-shrink: 0; z-index: 20;
+        }
+        .back-button { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; transition: background-color 0.2s ease; }
+        .back-button:hover { background-color: var(--hover-bg); }
+        .back-button svg { width: 24px; height: 24px; }
+        .page-title { font-size: 1.4em; font-weight: 500; margin: 0 0 0 15px; }
+        .page-controls { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+        .control-btn {
+            background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color);
+            padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 0.9em; font-weight: 500;
+            display: flex; align-items: center; gap: 8px; transition: background-color 0.2s ease;
+        }
+        .control-btn:hover { background-color: var(--hover-bg); }
+        .control-btn.accent { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
+        .control-btn.accent:hover { background-color: #6a5acd; }
+        .page-content { flex-grow: 1; display: flex; gap: 15px; padding: 15px; overflow: hidden; }
+        .controls-panel {
+            flex: 0 0 340px; background-color: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+        }
+        .controls-panel h2 { margin: 0 0 5px 0; font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 0.9em; color: var(--text-secondary); }
+        .form-group input, .form-group textarea {
+            background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary);
+            padding: 10px; border-radius: 5px; font: inherit; width: 100%; transition: border-color 0.2s ease;
+        }
+        .form-group textarea { resize: vertical; min-height: 70px; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent-color); }
+        .protocol-note { font-size: 0.8em; color: var(--text-muted); line-height: 1.4; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; }
+        
+        .grid-container { flex-grow: 1; overflow-y: auto; overflow-x: hidden; }
+        .grid-stack { background: var(--bg-primary); }
+        .grid-stack-item-content {
+            background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);
+            display: flex; flex-direction: column; overflow: hidden; user-select: none; border-radius: 8px;
+        }
+        .camera-widget-header {
+            display: flex; align-items: center; padding: 5px 10px;
+            background-color: var(--bg-tertiary); cursor: move; flex-shrink: 0;
+        }
+        .recording-indicator { width: 10px; height: 10px; background-color: var(--recording-color); border-radius: 50%; margin-right: 8px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .camera-widget-title { font-weight: 500; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .widget-controls { display: flex; gap: 4px; }
+        .widget-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; width: 26px; height: 26px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .widget-btn:hover { background-color: var(--hover-bg); color: var(--text-primary); }
+        .widget-btn.remove:hover { background-color: var(--danger-color); color: white; }
+        .widget-btn svg { width: 16px; height: 16px; }
+        .camera-widget-body { flex-grow: 1; display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; }
+        .camera-widget-body .video-js { width: 100% !important; height: auto !important; aspect-ratio: 16/9; }
+        .camera-description { font-size: 0.85em; color: var(--text-secondary); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+        .edit-view { display: flex; flex-direction: column; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="page-container">
+        <header class="page-header">
+            <button class="back-button" onclick="window.location.href='../tools.html'" title="Voltar ao Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <h1 class="page-title">Dashboard de Câmeras</h1>
+            <div class="page-controls">
+                <button id="import-layout-btn" class="control-btn">Importar</button>
+                <button id="export-layout-btn" class="control-btn">Exportar</button>
+                <button id="save-layout-btn" class="control-btn accent">Salvar Layout</button>
+            </div>
+            <input type="file" id="import-file-input" accept=".json" style="display: none;">
+        </header>
+
+        <main class="page-content">
+            <aside class="controls-panel">
+                <h2>Adicionar Nova Câmera</h2>
+                <div class="form-group"><label for="camera-name">Nome</label><input type="text" id="camera-name" placeholder="Ex: Câmera da Garagem"></div>
+                <div class="form-group"><label for="camera-url">URL do Stream</label><input type="text" id="camera-url" placeholder="http://192.168.1.10/video"></div>
+                <div class="form-group"><label for="camera-user">Usuário (opcional)</label><input type="text" id="camera-user" placeholder="admin"></div>
+                <div class="form-group"><label for="camera-pass">Senha (opcional)</label><input type="password" id="camera-pass" placeholder="••••••••"></div>
+                <div class="form-group"><label for="camera-desc">Descrição</label><textarea id="camera-desc" placeholder="Detalhes, localização, etc."></textarea></div>
+                <p class="protocol-note"><b>Nota:</b> Para streams <b>RTSP</b>, use um proxy (ex: RTSP Simple Server) para converter para HLS e insira a URL HLS (.m3u8) aqui.</p>
+                <button id="add-camera-btn" class="control-btn accent" style="width: 100%; padding: 12px; margin-top: auto;">Adicionar à Grade</button>
+            </aside>
+            <div class="grid-container"><div class="grid-stack"></div></div>
+        </main>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const grid = GridStack.init({
+            float: true, cellHeight: '70px', minRow: 1, handle: '.camera-widget-header'
+        });
+
+        const players = {};
+        const recorders = {};
+
+        const buildStreamURL = (data) => {
+            if (data.user && data.pass && data.url) {
+                try {
+                    const url = new URL(data.url);
+                    url.username = data.user;
+                    url.password = data.pass;
+                    return url.href;
+                } catch (e) { return data.url; }
+            }
+            return data.url;
+        };
+
+        const updateWidgetData = (widgetEl, data) => {
+            for (const key in data) {
+                if (data[key] !== undefined) {
+                    widgetEl.dataset[key] = data[key];
+                }
+            }
+        };
+
+        const createWidgetContent = (widgetEl) => {
+            const data = widgetEl.dataset;
+            const isMjpeg = data.url.toLowerCase().includes('mjpeg') || data.url.toLowerCase().includes('/video');
+            const streamUrl = buildStreamURL(data);
+            
+            // Dispose of old player if it exists
+            if (players[data.id]) {
+                players[data.id].dispose();
+                delete players[data.id];
+            }
+            
+            let playerHtml;
+            if (isMjpeg) {
+                playerHtml = `<img id="player_${data.id}" src="${streamUrl}" class="camera-feed" style="width:100%; height:auto; aspect-ratio:16/9; background:#000;" crossorigin="anonymous">`;
+            } else {
+                playerHtml = `<video id="player_${data.id}" class="video-js" controls preload="auto" muted="true"><source src="${streamUrl}" type="application/x-mpegURL"></video>`;
+            }
+            
+            const content = widgetEl.querySelector('.grid-stack-item-content');
+            content.querySelector('.camera-widget-title').textContent = data.name;
+            const body = content.querySelector('.camera-widget-body');
+            body.innerHTML = `${playerHtml}<p class="camera-description">${data.description || ''}</p>`;
+            
+            if (!isMjpeg) {
+                const videoElement = document.getElementById(`player_${data.id}`);
+                players[data.id] = videojs(videoElement, { autoplay: true, muted: true, fluid: true });
+            }
+        };
+
+        const addCameraWidget = (cameraData) => {
+            const widgetContent = `
+                <div class="grid-stack-item-content">
+                    <div class="camera-widget-header">
+                        <span class="camera-widget-title"></span>
+                        <div class="widget-controls">
+                            <button class="widget-btn edit" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                            <button class="widget-btn fullscreen" title="Tela Cheia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+                            <button class="widget-btn snapshot" title="Snapshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+                            <button class="widget-btn record" title="Gravar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></button>
+                            <button class="widget-btn remove" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                        </div>
+                    </div>
+                    <div class="camera-widget-body"></div>
+                </div>`;
+            const widgetEl = grid.addWidget({
+                id: cameraData.id, x: cameraData.x, y: cameraData.y, w: cameraData.w, h: cameraData.h,
+                content: widgetContent
+            });
+            
+            updateWidgetData(widgetEl, cameraData);
+            createWidgetContent(widgetEl);
+            attachWidgetEvents(widgetEl);
+        };
+        
+        const attachWidgetEvents = (widgetEl) => {
+            const id = widgetEl.dataset.id;
+            const content = widgetEl.querySelector('.grid-stack-item-content');
+            
+            content.querySelector('.remove').onclick = () => { grid.removeWidget(widgetEl); if(players[id]) players[id].dispose(); };
+            content.querySelector('.fullscreen').onclick = () => {
+                const playerEl = widgetEl.querySelector('.video-js, .camera-feed');
+                if (playerEl && playerEl.requestFullscreen) playerEl.requestFullscreen();
+            };
+            content.querySelector('.snapshot').onclick = () => takeSnapshot(widgetEl);
+            content.querySelector('.record').onclick = (e) => toggleRecording(widgetEl, e.currentTarget);
+            content.querySelector('.edit').onclick = () => toggleEditView(widgetEl);
+        };
+
+        const toggleEditView = (widgetEl) => {
+            const body = widgetEl.querySelector('.camera-widget-body');
+            const isEditing = body.querySelector('.edit-view');
+            
+            if (isEditing) { // Save changes
+                const updatedData = {
+                    name: body.querySelector('.edit-name').value,
+                    url: body.querySelector('.edit-url').value,
+                    user: body.querySelector('.edit-user').value,
+                    pass: body.querySelector('.edit-pass').value,
+                    description: body.querySelector('.edit-desc').value
+                };
+                updateWidgetData(widgetEl, updatedData);
+                createWidgetContent(widgetEl);
+            } else { // Show edit form
+                const data = widgetEl.dataset;
+                body.innerHTML = `
+                    <div class="edit-view">
+                        <div class="form-group"><label>Nome</label><input class="edit-name" value="${data.name}"></div>
+                        <div class="form-group"><label>URL</label><input class="edit-url" value="${data.url}"></div>
+                        <div class="form-group"><label>Usuário</label><input class="edit-user" value="${data.user || ''}"></div>
+                        <div class="form-group"><label>Senha</label><input class="edit-pass" type="password" value="${data.pass || ''}"></div>
+                        <div class="form-group"><label>Descrição</label><textarea class="edit-desc">${data.description || ''}</textarea></div>
+                    </div>`;
+            }
+        };
+
+        const takeSnapshot = (widgetEl) => {
+            const data = widgetEl.dataset;
+            const playerEl = widgetEl.querySelector(`#player_${data.id}`);
+            if (!playerEl) return;
+            
+            const canvas = document.createElement('canvas');
+            const isVideo = playerEl.tagName === 'VIDEO';
+            canvas.width = isVideo ? playerEl.videoWidth : playerEl.naturalWidth;
+            canvas.height = isVideo ? playerEl.videoHeight : playerEl.naturalHeight;
+            canvas.getContext('2d').drawImage(playerEl, 0, 0, canvas.width, canvas.height);
+            
+            const link = document.createElement('a');
+            link.download = `${data.name.replace(/\s/g, '_')}_snapshot_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+
+        const toggleRecording = (widgetEl, btn) => {
+            const data = widgetEl.dataset;
+            if (recorders[data.id] && recorders[data.id].state === "recording") {
+                recorders[data.id].stop();
+                btn.style.color = '';
+                widgetEl.querySelector('.recording-indicator')?.remove();
+            } else {
+                const playerEl = widgetEl.querySelector(`#player_${data.id}`);
+                if (!playerEl || playerEl.tagName !== 'VIDEO') {
+                    alert('Gravação só é suportada para streams de vídeo (não-MJPEG).'); return;
+                }
+                const stream = playerEl.captureStream();
+                recorders[data.id] = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                const chunks = [];
+                recorders[data.id].ondataavailable = e => chunks.push(e.data);
+                recorders[data.id].onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `${data.name.replace(/\s/g, '_')}_rec_${Date.now()}.webm`;
+                    link.href = url;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                };
+                recorders[data.id].start();
+                btn.style.color = 'var(--recording-color)';
+                const indicator = document.createElement('div');
+                indicator.className = 'recording-indicator';
+                widgetEl.querySelector('.camera-widget-header').prepend(indicator);
+            }
+        };
+
+        const saveLayout = () => {
+            const savedWidgets = grid.save(false);
+            const fullLayout = savedWidgets.map(item => {
+                const widgetEl = grid.engine.nodes.find(n => n.id == item.id).el;
+                return { ...item, ...widgetEl.dataset };
+            });
+            localStorage.setItem('cameraDashboardLayoutV3', JSON.stringify(fullLayout));
+            alert('Layout salvo com sucesso!');
+        };
+        
+        const loadLayout = (dataToLoad) => {
+            const layoutData = dataToLoad || JSON.parse(localStorage.getItem('cameraDashboardLayoutV3') || '[]');
+            grid.removeAll();
+            if (layoutData.length > 0) {
+                layoutData.forEach(cameraData => addCameraWidget(cameraData));
+            }
+        };
+
+        const exportLayout = () => {
+            const data = localStorage.getItem('cameraDashboardLayoutV3');
+            if (!data || data === '[]') { alert('Nenhum layout salvo para exportar.'); return; }
+            const blob = new Blob([data], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'cameras-backup.json';
+            a.click();
+            URL.revokeObjectURL(a.href);
+        };
+
+        const importLayout = (file) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (confirm('Isso substituirá seu layout atual. Deseja continuar?')) {
+                        loadLayout(data);
+                        // Salva o layout importado como o novo padrão local
+                        localStorage.setItem('cameraDashboardLayoutV3', JSON.stringify(data));
+                        alert('Layout importado com sucesso!');
+                    }
+                } catch (err) { alert('Erro: Arquivo de backup inválido ou corrompido.'); }
+            };
+            reader.readAsText(file);
+        };
+
+        document.getElementById('add-camera-btn').onclick = () => {
+            const camera = {
+                id: `cam_${Date.now()}`,
+                name: document.getElementById('camera-name').value,
+                url: document.getElementById('camera-url').value,
+                user: document.getElementById('camera-user').value,
+                pass: document.getElementById('camera-pass').value,
+                description: document.getElementById('camera-desc').value,
+                w: 6, h: 5
+            };
+            if (!camera.name || !camera.url) { alert('Nome e URL são obrigatórios.'); return; }
+            addCameraWidget(camera);
+            ['name', 'url', 'user', 'pass', 'desc'].forEach(f => document.getElementById(`camera-${f}`).value = '');
+        };
+        
+        document.getElementById('save-layout-btn').onclick = saveLayout;
+        document.getElementById('export-layout-btn').onclick = exportLayout;
+        document.getElementById('import-layout-btn').onclick = () => document.getElementById('import-file-input').click();
+        document.getElementById('import-file-input').onchange = (e) => {
+            if (e.target.files.length > 0) {
+                importLayout(e.target.files[0]);
+            }
+        };
+
+        loadLayout(); // Carrega na inicialização
+    });
+    </script>
+</body>
+</html>

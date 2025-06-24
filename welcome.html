@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Bem-vindo ao Arys</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* 
+         * TEMA "NETWORK" - VERMELHO, BRANCO & CINZA
+         * Estilo autônomo para uma interface de alta tecnologia.
+         */
+        :root {
+            --bg-primary: #0d0d0d; /* Quase preto para um visual dramático */
+            --text-primary: #FFFFFF;
+            --text-secondary: #A0A0A0;
+            --accent-color: #FF3B3B; /* Vermelho vibrante */
+            --line-color: rgba(150, 150, 150, 0.3);
+            --bg-glass: rgba(20, 20, 20, 0.7);
+            --border-glass: rgba(50, 50, 50, 0.5);
+            --hover-bg: rgba(255, 59, 59, 0.1);
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-primary);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .welcome-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            background: radial-gradient(ellipse at center, transparent 30%, var(--bg-primary) 85%);
+        }
+
+        .welcome-header { margin-bottom: 50px; }
+        .title-wrapper { display: flex; align-items: center; justify-content: center; height: 42px; }
+        
+        .welcome-title {
+            font-family: 'Fira Code', monospace;
+            font-size: 36px;
+            font-weight: 500;
+            margin: 0;
+        }
+        
+        .cursor {
+            width: 10px;
+            height: 36px;
+            background-color: var(--accent-color);
+            margin-left: 8px;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .welcome-subtitle { font-size: 16px; color: var(--text-secondary); margin-top: 10px; font-weight: 400; }
+
+        .link-section {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 25px 35px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .section-title { font-size: 16px; color: var(--text-primary); margin-top: 0; margin-bottom: 20px; font-weight: 500; }
+        .link-list { list-style: none; padding: 0; margin: 0; display: flex; gap: 20px; }
+
+        .link-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .link-item:hover {
+            background-color: var(--hover-bg);
+            color: var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        .link-item svg { width: 24px; height: 24px; stroke: currentColor; }
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="welcome-container">
+        <div class="welcome-header">
+            <div class="title-wrapper">
+                <h1 class="welcome-title" id="typing-title"></h1>
+                <span class="cursor"></span>
+            </div>
+            <p class="welcome-subtitle">Onde a precisão encontra a criatividade.</p>
+        </div>
+
+        <div class="link-section">
+            <h2 class="section-title">Conecte-se conosco</h2>
+            <ul class="link-list">
+                 <li><a class="link-item" href="https://syradevops.com" target="_blank" title="Website SyraDevOps"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></a></li>
+                <li><a class="link-item" href="https://github.com/SyraDevOps" target="_blank" title="GitHub"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg></a></li>
+                <li><a class="link-item" href="https://instagram.com/SyraDevOps" target="_blank" title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a></li>
+                <li><a class="link-item" href="https://x.com/SyraDevOps" target="_blank" title="X (Twitter)"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></a></li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // --- ANIMAÇÃO DE REDE DE PARTÍCULAS ---
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        // Cores para as partículas: Vermelho, Branco e dois tons de Cinza
+        const PARTICLE_COLORS = ['#FF3B3B', '#FFFFFF', '#AAAAAA', '#777777'];
+        const CONNECT_DISTANCE = 150; // Distância máxima para desenhar um raio
+        const PARTICLE_COUNT = 80;    // Número de partículas na tela
+
+        class Particle {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.5; // Velocidade horizontal lenta
+                this.vy = (Math.random() - 0.5) * 0.5; // Velocidade vertical lenta
+                this.radius = radius;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Faz as partículas reaparecerem do outro lado ao saírem da tela (efeito contínuo)
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+            }
+        }
+
+        function initParticles() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const radius = Math.random() * 2 + 1; // Raio entre 1 e 3
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const color = PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
+                particles.push(new Particle(x, y, radius, color));
+            }
+        }
+
+        function connectParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < CONNECT_DISTANCE) {
+                        ctx.beginPath();
+                        // O raio fica mais fraco com a distância
+                        ctx.strokeStyle = `rgba(150, 150, 150, ${1 - distance / CONNECT_DISTANCE})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            connectParticles();
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', initParticles);
+        
+        // --- EFEITO MÁQUINA DE ESCREVER ---
+        const typingTitle = document.getElementById('typing-title');
+        const textsToType = ["Bem-vindo ao Arys", "Edite com elegância", "Crie algo incrível"];
+        let textIndex = 0, charIndex = 0;
+
+        function type() {
+            if (charIndex < textsToType[textIndex].length) {
+                typingTitle.textContent += textsToType[textIndex].charAt(charIndex++);
+                setTimeout(type, 100);
+            } else { setTimeout(erase, 2500); }
+        }
+
+        function erase() {
+            if (charIndex > 0) {
+                typingTitle.textContent = textsToType[textIndex].substring(0, --charIndex);
+                setTimeout(erase, 50);
+            } else {
+                textIndex = (textIndex + 1) % textsToType.length;
+                setTimeout(type, 500);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initParticles();
+            animate();
+            setTimeout(type, 500);
+        });
+    </script>
+</body>
+</html>
