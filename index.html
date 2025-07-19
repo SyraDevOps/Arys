@@ -1,0 +1,2101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Arys Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d2d;
+            --border-color: #3c3c3c;
+            --text-primary: #d4d4d4;
+            --text-secondary: #cccccc;
+            --text-muted: #858585;
+            --accent-color: #7b68ee;
+            --hover-bg: #3a3d41;
+            --active-bg: #3c3c3c;
+            --close-hover-bg: #e81123;
+            --close-hover-text: white;
+            --highlight-bg: rgba(123, 104, 238, 0.4);
+            --highlight-active-bg: rgba(123, 104, 238, 0.7);
+            --selection-bg: rgba(123, 104, 238, 0.2);
+            --delete-color: #f44336;
+        }
+
+        body.theme-white {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f3f3f3;
+            --bg-tertiary: #e8e8e8;
+            --border-color: #d1d1d1;
+            --text-primary: #1f1f1f;
+            --text-secondary: #333333;
+            --text-muted: #6e6e6e;
+            --accent-color: #6a5acd;
+            --hover-bg: #e0e0e0;
+            --active-bg: #d9d9d9;
+            --highlight-bg: rgba(106, 90, 205, 0.3);
+            --highlight-active-bg: rgba(106, 90, 205, 0.5);
+            --selection-bg: rgba(106, 90, 205, 0.2);
+        }
+        
+        body.theme-red {
+            --bg-primary: #281919;
+            --bg-secondary: #3B2424;
+            --bg-tertiary: #412a2a;
+            --border-color: #5C3737;
+            --text-primary: #F2E3E3;
+            --text-secondary: #E8D5D5;
+            --text-muted: #b89393;
+            --accent-color: #FF6B6B;
+            --hover-bg: #523434;
+            --active-bg: #5C3737;
+            --highlight-bg: rgba(255, 107, 107, 0.4);
+            --highlight-active-bg: rgba(255, 107, 107, 0.6);
+            --selection-bg: rgba(255, 107, 107, 0.2);
+        }
+
+        * { box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0; background: var(--bg-primary);
+            color: var(--text-primary); overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            user-select: none;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--hover-bg); }
+
+        .top-bar { position: fixed; top: 0; left: 0; right: 0; height: 30px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; -webkit-app-region: drag; z-index: 1000; }
+        .app-layout { display: flex; height: 100vh; padding-top: 30px; }
+        .side-menu { width: 45px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); z-index: 999; display: flex; flex-direction: column; align-items: center; padding-top: 10px; flex-shrink: 0; }
+        .main-container { display: flex; flex-grow: 1; height: 100%; position: relative; }
+        .file-explorer { width: 250px; min-width: 180px; max-width: 500px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: none; flex-direction: column; flex-shrink: 0; position: relative; }
+        .file-explorer.visible { display: flex; }
+        .resizer { width: 5px; cursor: col-resize; z-index: 50; flex-shrink: 0; transition: background-color 0.2s; }
+        .resizer:hover, .resizer.resizing { background: var(--accent-color); }
+        .editor-section { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+        .window-info { display: flex; align-items: center; gap: 8px; margin-left: 10px; font-size: 13px; -webkit-app-region: no-drag; }
+        #current-folder, #current-title { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #modified-indicator { font-weight: bold; color: var(--accent-color); margin-left: 4px; display: inline-block; width: 10px; }
+        .window-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
+        .control-button { width: 46px; height: 100%; border: none; background: transparent; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .control-button .icon { width: 14px; height: 14px; }
+        .control-button:hover { background: var(--hover-bg); }
+        #close-btn:hover { background: var(--close-hover-bg); color: var(--close-hover-text); }
+        .icon { width: 20px; height: 20px; stroke-width: 1.5; stroke: currentColor; fill: none; }
+
+        .side-menu-item { width: 100%; height: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; color: var(--text-primary); }
+        .side-menu-item:hover, .side-menu-item.active { background: var(--active-bg); }
+        .submenu-container { position: fixed; left: 46px; background: var(--bg-secondary); border: 1px solid var(--border-color); display: none; z-index: 1001; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 4px 0; }
+        #file-submenu { top: 75px; } 
+        #theme-submenu { top: 210px; }
+        .show-submenu { display: block; }
+        .submenu-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; width: 200px; }
+        .submenu-item:hover { background: var(--hover-bg); }
+        .submenu-item .icon { width: 16px; height: 16px; color: var(--text-secondary); }
+        .submenu-text { font-size: 13px; }
+
+        .file-explorer-header { padding: 8px; display: flex; justify-content: space-between; align-items: center; gap: 5px; border-bottom: 1px solid var(--border-color); }
+        .file-explorer-title { flex-grow: 1; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .file-explorer-controls { display: flex; gap: 4px; }
+        .nav-button { padding: 4px; background: none; border: none; color: var(--text-primary); cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+        .nav-button:hover { background: var(--hover-bg); }
+        .nav-button .icon { width: 18px; height: 18px; }
+        .path-navigation { padding: 5px 8px; background: var(--bg-tertiary); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+        .file-tree { padding: 5px; overflow-y: auto; flex-grow: 1; user-select: none; }
+        .file-item, .folder-header { padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-item:hover, .folder-header:hover { background: var(--hover-bg); }
+        .file-item.selected, .folder-header.selected { background-color: var(--selection-bg); border: 1px solid var(--accent-color); padding: 3px 7px; }
+        .file-icon-wrapper { display: flex; align-items: center; justify-content: center; width: 16px; }
+        .file-icon-wrapper .icon { width: 16px; height: 16px; color: var(--text-muted); }
+        .folder .file-icon-wrapper .icon { color: var(--accent-color); opacity: 0.8; }
+        .folder-header .folder-arrow { font-size: 10px; transition: transform 0.15s ease-in-out; display: flex; align-items: center; justify-content: center; width: 10px; }
+        .folder.expanded > .folder-header .folder-arrow { transform: rotate(90deg); }
+        .folder-content { display: none; padding-left: 20px; }
+        .folder.expanded > .folder-content { display: block; }
+        .new-item-input-wrapper { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }
+        .new-item-input { flex-grow: 1; background: var(--bg-primary); border: 1px solid var(--accent-color); color: var(--text-primary); font-family: 'Inter'; border-radius: 4px; outline: none; padding: 2px 4px; }
+
+        .editor-container { display: flex; background: var(--bg-primary); height: 100%; width: 100%; position: relative; }
+        .editor-wrapper { flex: 1; position: relative; display: flex; min-width: 0; }
+        #editor-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 15px; overflow: hidden; pointer-events: none; white-space: pre-wrap; word-wrap: break-word; }
+        #highlights, #text-editor, .line-numbers { font-family: 'Fira Code', monospace; font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; font-feature-settings: "liga" 1, "calt" 1; }
+        #highlights .highlight { background-color: var(--highlight-bg); border-radius: 2px; }
+        #highlights .highlight.active { background-color: var(--highlight-active-bg); }
+        .line-numbers { padding: 15px 10px; background: var(--bg-primary); color: var(--text-muted); text-align: right; overflow-y: hidden; }
+        #text-editor { position: relative; z-index: 1; flex: 1; padding: 15px; border: none; background: transparent; color: var(--text-primary); resize: none; outline: none; width: 100%; user-select: text; }
+
+        .search-bar { position: absolute; top: 10px; right: 20px; z-index: 10; background: var(--bg-secondary); padding: 8px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-color); }
+        .search-bar.hidden { display: none; }
+        #search-input { background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 4px 8px; border-radius: 4px; outline: none; width: 200px; }
+        #search-input:focus { border-color: var(--accent-color); }
+        #search-results { font-size: 12px; color: var(--text-muted); }
+        .search-btn { background: none; border: none; cursor: pointer; color: var(--text-primary); padding: 4px; display: flex; align-items: center; border-radius: 4px; }
+        .search-btn:hover { background: var(--hover-bg); }
+        .search-btn .icon { width: 16px; height: 16px; }
+        .character-section { position: fixed; bottom: 10px; right: 10px; z-index: -1; }
+        #character-img { width: 150px; height: 200px; object-fit: contain; }
+
+        /* ========= ESTILOS DE AUTENTICAÇÃO ========= */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .auth-overlay.visible { display: flex; }
+        .auth-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 30px;
+            width: 400px;
+            max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .auth-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .auth-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 8px 0;
+        }
+        .auth-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0;
+        }
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .auth-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .auth-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .auth-input {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .auth-input:focus { border-color: var(--accent-color); }
+        .auth-button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .auth-button:hover:not(:disabled) { opacity: 0.9; }
+        .auth-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .auth-switch {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .auth-switch-link {
+            color: var(--accent-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .auth-switch-link:hover { opacity: 0.8; }
+        .auth-error {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            color: #f44336;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        .auth-success {
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        .qr-code-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .qr-code-img {
+            max-width: 200px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        .backup-key {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+
+        /* ========= INDICADOR DE USUÁRIO LOGADO ========= */
+        .user-status {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-right: 15px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .user-status.visible { display: flex; }
+        .user-avatar {
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 10px;
+        }
+        .user-name {
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ========= ESTILOS DO DIÁRIO DE DESENVOLVIMENTO ========= */
+        .diary-panel {
+            width: 350px;
+            min-width: 250px;
+            max-width: 600px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: none;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .diary-panel.visible { display: flex; }
+        .diary-header {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .diary-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .diary-controls {
+            display: flex;
+            gap: 4px;
+        }
+        .diary-btn {
+            padding: 4px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .diary-btn:hover { background: var(--hover-bg); }
+        .diary-btn .icon { width: 16px; height: 16px; }
+        .diary-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .diary-entry {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            position: relative;
+        }
+        .diary-entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .diary-entry-date {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'Fira Code', monospace;
+        }
+        .diary-entry-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .diary-entry-btn {
+            padding: 2px 4px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .diary-entry-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+        .diary-entry-btn.delete:hover { color: var(--delete-color); }
+        .diary-entry-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .diary-entry-content {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            white-space: pre-wrap;
+            margin-bottom: 8px;
+        }
+        .diary-entry-code {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin-top: 8px;
+        }
+        .diary-form {
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-color);
+            padding: 12px;
+            flex-shrink: 0;
+        }
+        .diary-form.hidden { display: none; }
+        .diary-input-group {
+            margin-bottom: 10px;
+        }
+        .diary-input-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            display: block;
+        }
+        .diary-input {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            outline: none;
+            font-family: 'Inter';
+        }
+        .diary-input:focus { border-color: var(--accent-color); }
+        .diary-textarea {
+            resize: vertical;
+            min-height: 60px;
+            max-height: 120px;
+        }
+        .diary-code-input {
+            font-family: 'Fira Code', monospace;
+            min-height: 80px;
+        }
+        .diary-form-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .diary-form-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .diary-form-btn.primary {
+            background: var(--accent-color);
+            color: white;
+        }
+        .diary-form-btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .diary-form-btn:hover { opacity: 0.9; }
+        .diary-empty {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 40px 20px;
+        }
+
+        /* ========= ESTILOS DO TERMINAL INTEGRADO ========= */
+        .terminal-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 250px; /* Altura inicial */
+            background: #0f2027;
+            display: none; /* Começa oculto */
+            flex-direction: column;
+            border-top: 1px solid var(--border-color);
+            z-index: 100;
+        }
+        .terminal-container.visible { display: flex; }
+        #terminal-resizer {
+            width: 100%;
+            height: 5px;
+            cursor: row-resize;
+            background: var(--bg-secondary);
+            transition: background-color 0.2s;
+        }
+        #terminal-resizer:hover { background: var(--accent-color); }
+        #terminal {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            outline: none;
+            caret-color: #00ff99;
+            font-size: 14px;
+            line-height: 1.5em;
+            user-select: text;
+            font-family: 'Share Tech Mono', monospace;
+            color: #00ff99;
+            text-shadow: 0 0 5px #00ff99, 0 0 10px #00ff99;
+        }
+        .terminal-line { display: block; }
+        .terminal-prompt { color: #00ff99; }
+        .terminal-cursor {
+            display: inline-block;
+            background-color: #00ff99;
+            width: 9px;
+            height: 1.2em;
+            margin-left: 2px;
+            animation: blink 1s steps(2, start) infinite;
+            vertical-align: bottom;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* ========= NOVOS ESTILOS PARA O CHATBOT ========= */
+        #chatbot-resizer { display: none; }
+        #chatbot-resizer.visible { display: block; }
+        .chatbot-panel {
+            width: 350px;
+            min-width: 250px;
+            max-width: 600px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            display: none; /* Inicia oculto */
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .chatbot-panel.visible { display: flex; }
+
+        .chatbot-header {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .chatbot-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+        .chatbot-title .fa-moon { color: var(--accent-color); }
+
+        .chatbot-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 14px;
+            user-select: text;
+        }
+
+        .user-message {
+            background: var(--accent-color);
+            color: white;
+            border-bottom-right-radius: 4px;
+            align-self: flex-end;
+        }
+        
+        .luna-message {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+            align-self: flex-start;
+        }
+        
+        .typing-indicator .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-muted); margin: 0 2px; animation: bounce 1.3s infinite ease-in-out; }
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-8px); } }
+
+        .chatbot-input-area {
+            padding: 10px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+        
+        #chatbot-input-form {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 5px;
+        }
+        #chatbot-input-form:focus-within { border-color: var(--accent-color); }
+
+        #chatbot-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 14px;
+            padding: 8px;
+            resize: none;
+            outline: none;
+            height: 38px; /* Altura inicial para uma linha */
+            max-height: 120px; /* Limite de altura */
+            font-family: 'Inter';
+            user-select: text;
+        }
+        #chatbot-input::placeholder { color: var(--text-muted); }
+
+        #chatbot-send-btn {
+            background-color: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 16px;
+            transition: color 0.2s ease, transform 0.2s ease;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            align-self: flex-end; /* Alinha o botão com a base da caixa de texto */
+        }
+        #chatbot-send-btn:hover:not(:disabled) { background: var(--hover-bg); color: var(--accent-color); }
+        #chatbot-send-btn:disabled { cursor: not-allowed; color: var(--text-muted); opacity: 0.5; }
+
+    </style>
+</head>
+<body class="theme-dark"> <!-- O tema padrão ainda é definido aqui, mas será sobrescrito pelo JS -->
+    <!-- BARRA SUPERIOR -->
+    <div class="top-bar">
+        <div class="window-info">
+            <span class="window-title">Arys</span>
+            <span class="path-separator">-</span>
+            <span id="current-folder">Sem pasta</span>
+            <span class="path-separator">-</span>
+            <span id="current-title">Sem título</span>
+            <span id="modified-indicator"></span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <div class="user-status" id="user-status">
+                <div class="user-avatar" id="user-avatar"></div>
+                <span class="user-name" id="user-name"></span>
+            </div>
+            <div class="window-controls">
+                <button class="control-button" id="minimize-btn" title="Minimizar"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+                <button class="control-button" id="maximize-btn" title="Maximizar"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg></button>
+                <button class="control-button" id="close-btn" title="Fechar"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- LAYOUT PRINCIPAL -->
+    <div class="app-layout">
+        <!-- BARRA LATERAL -->
+        <div class="side-menu">
+            <div class="side-menu-item" id="show-explorer" title="Explorador"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></div>
+            <div class="side-menu-item" id="file-menu" title="Arquivo"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></div>
+            <div class="side-menu-item" id="terminal-toggle" title="Terminal"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></div>
+            <div class="side-menu-item" id="tools-menu" title="Ferramentas"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+            <!-- NOVO ÍCONE DE CHATBOT -->
+            <div class="side-menu-item" id="toggle-chatbot-btn" title="Luna AI Chat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.321l5.518.442c.52.041.732.734.336 1.051l-4.118 3.587a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-3.05a.563.563 0 0 0-.586 0l-4.725 3.05a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.118-3.587a.562.562 0 0 1 .336-1.051l5.518-.442a.563.563 0 0 0 .475-.321L11.48 3.5Z"/></svg></div>
+            <!-- NOVO ÍCONE DO DIÁRIO -->
+            <div class="side-menu-item" id="toggle-diary-btn" title="Diário de Desenvolvimento"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
+            <!-- NOVO ÍCONE DE LOGIN -->
+            <div class="side-menu-item" id="auth-toggle" title="Login SyraID"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg></div>
+            <div class="side-menu-item" id="theme-menu" title="Temas"><svg class="icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></div>
+        </div>
+
+        <!-- SUBMENUS -->
+        <div class="submenu-container" id="file-submenu">
+             <div class="submenu-item" data-action="new-file"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg><span class="submenu-text">Novo Arquivo (Ctrl+N)</span></div>
+             <div class="submenu-item" data-action="open-file"><svg class="icon" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg><span class="submenu-text">Abrir Arquivo</span></div>
+             <div class="submenu-item" data-action="open-folder"><svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="submenu-text">Abrir Pasta</span></div>
+             <div class="submenu-item" data-action="save-file"><svg class="icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg><span class="submenu-text">Salvar (Ctrl+S)</span></div>
+             <div class="submenu-item" data-action="save-as"><svg class="icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg><span class="submenu-text">Salvar Como</span></div>
+        </div>
+        <div class="submenu-container" id="theme-submenu">
+            <div class="submenu-item" data-theme="dark"><svg class="icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span class="submenu-text">Tema Escuro (Dark)</span></div>
+            <div class="submenu-item" data-theme="white"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg><span class="submenu-text">Tema Claro (White)</span></div>
+            <div class="submenu-item" data-theme="red"><svg class="icon" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg><span class="submenu-text">Tema Vermelho (Red)</span></div>
+        </div>
+        
+        <!-- CONTAINER PRINCIPAL (EXPLORER + DIARY + EDITOR + CHATBOT) -->
+        <div class="main-container">
+            <div class="file-explorer">
+                <div class="file-explorer-header">
+                    <div class="file-explorer-title">EXPLORADOR</div>
+                    <div class="file-explorer-controls">
+                        <button class="nav-button" id="new-file-explorer" title="Novo Arquivo"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg></button>
+                        <button class="nav-button" id="new-folder-explorer" title="Nova Pasta"><svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg></button>
+                    </div>
+                </div>
+                <div class="path-navigation">
+                    <button class="nav-button" id="nav-back" title="Voltar"><svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                    <span id="current-path">Nenhuma pasta aberta</span>
+                </div>
+                <div class="file-tree" tabindex="-1"></div>
+            </div>
+            
+            <div class="resizer" id="explorer-resizer"></div>
+
+            <!-- PAINEL DO DIÁRIO -->
+            <div class="diary-panel" id="diary-panel">
+                <div class="diary-header">
+                    <div class="diary-title">DIÁRIO DE DESENVOLVIMENTO</div>
+                    <div class="diary-controls">
+                        <button class="diary-btn" id="diary-new-btn" title="Nova Anotação"><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+                        <button class="diary-btn" id="diary-export-btn" title="Exportar JSON"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
+                        <button class="diary-btn" id="diary-import-btn" title="Importar JSON"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></button>
+                    </div>
+                </div>
+                <div class="diary-content" id="diary-content">
+                    <div class="diary-empty">
+                        Nenhuma anotação ainda.<br>
+                        Clique em + para criar sua primeira anotação.
+                    </div>
+                </div>
+                <div class="diary-form hidden" id="diary-form">
+                    <div class="diary-input-group">
+                        <label class="diary-input-label" for="diary-title-input">Título</label>
+                        <input type="text" class="diary-input" id="diary-title-input" placeholder="Título da anotação">
+                    </div>
+                    <div class="diary-input-group">
+                        <label class="diary-input-label" for="diary-content-input">Conteúdo</label>
+                        <textarea class="diary-input diary-textarea" id="diary-content-input" placeholder="Descreva sua anotação..."></textarea>
+                    </div>
+                    <div class="diary-input-group">
+                        <label class="diary-input-label" for="diary-code-input">Código/Trecho (opcional)</label>
+                        <textarea class="diary-input diary-code-input" id="diary-code-input" placeholder="Cole aqui seu código ou trecho de texto..."></textarea>
+                    </div>
+                    <div class="diary-form-actions">
+                        <button class="diary-form-btn secondary" id="diary-cancel-btn">Cancelar</button>
+                        <button class="diary-form-btn primary" id="diary-save-btn">Salvar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="resizer" id="diary-resizer"></div>
+
+            <div class="editor-section">
+                <div class="editor-container">
+                    <iframe id="welcome-frame" src="welcome.html" style="display: none; width: 100%; height: 100%; border: none;"></iframe>
+                    <div class="line-numbers"></div>
+                    <div class="editor-wrapper">
+                        <div id="editor-backdrop"><div id="highlights"></div></div>
+                        <textarea id="text-editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+                    </div>
+                    <div id="search-bar" class="search-bar hidden">
+                        <input type="text" id="search-input" placeholder="Buscar...">
+                        <span id="search-results">0/0</span>
+                        <button class="search-btn" id="search-prev" title="Anterior"><svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                        <button class="search-btn" id="search-next" title="Próximo"><svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+                        <button class="search-btn" id="search-close" title="Fechar (Esc)"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    </div>
+                </div>
+                <!-- TERMINAL INTEGRADO -->
+                <div class="terminal-container" id="terminal-container">
+                    <div id="terminal-resizer"></div>
+                    <div id="terminal" tabindex="0"></div>
+                </div>
+            </div>
+
+            <!-- NOVO RESIZER E PAINEL DO CHATBOT -->
+            <div class="resizer" id="chatbot-resizer"></div>
+            <div class="chatbot-panel" id="chatbot-panel">
+                <div class="chatbot-header">
+                    <i class="fas fa-moon"></i>
+                    <span class="chatbot-title">LUNA AI</span>
+                </div>
+                <div class="chatbot-messages" id="chatbot-messages">
+                    <!-- Mensagens serão injetadas aqui via JS -->
+                </div>
+                <div class="chatbot-input-area">
+                    <form id="chatbot-input-form">
+                        <textarea id="chatbot-input" placeholder="Pergunte algo para a Luna..." rows="1"></textarea>
+                        <button type="submit" id="chatbot-send-btn" title="Enviar Mensagem">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <div class="character-section"><img id="character-img" src="imgs/padrão.png" alt="Mascote"></div>
+    <input type="file" id="file-input" style="display: none;">
+
+    <!-- OVERLAY DE AUTENTICAÇÃO -->
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-modal">
+            <div class="auth-header">
+                <h2 class="auth-title" id="auth-title">Login SyraID</h2>
+                <p class="auth-subtitle" id="auth-subtitle">Entre com sua conta SyraID</p>
+            </div>
+            <div id="auth-message"></div>
+            <form class="auth-form" id="auth-form">
+                <div class="auth-input-group">
+                    <label class="auth-label" for="auth-username">Nome de usuário</label>
+                    <input type="text" class="auth-input" id="auth-username" required>
+                </div>
+                <div class="auth-input-group" id="totp-group">
+                    <label class="auth-label" for="auth-totp">Código TOTP</label>
+                    <input type="text" class="auth-input" id="auth-totp" placeholder="000000" maxlength="6" required>
+                </div>
+                <div id="qr-section" style="display: none;">
+                    <div class="qr-code-container">
+                        <img class="qr-code-img" id="qr-code-img" alt="QR Code">
+                    </div>
+                    <div class="auth-input-group">
+                        <label class="auth-label">Chave de backup (guarde em local seguro)</label>
+                        <div class="backup-key" id="backup-key"></div>
+                    </div>
+                </div>
+                <button type="submit" class="auth-button" id="auth-submit">Entrar</button>
+            </form>
+            <div class="auth-switch">
+                <span id="auth-switch-text">Não tem uma conta?</span>
+                <span class="auth-switch-link" id="auth-switch-link">Registrar</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const fs = require('fs');
+        const path = require('path');
+        
+        // --- CONSTANTES DE ÍCONES (SVG) ---
+        const FOLDER_ICON_SVG = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+        const FILE_ICON_SVG = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`;
+        const CHEVRON_RIGHT_SVG = `<svg class="icon" style="width:12px; height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
+        // --- CACHE DE ELEMENTOS DOM ---
+        const dom = {
+            body: document.body,
+            textEditor: document.getElementById('text-editor'),
+            lineNumbers: document.querySelector('.line-numbers'),
+            fileExplorer: document.querySelector('.file-explorer'),
+            fileTree: document.querySelector('.file-tree'),
+            resizer: document.getElementById('explorer-resizer'),
+            highlights: document.getElementById('highlights'),
+            editorBackdrop: document.getElementById('editor-backdrop'),
+            searchBar: document.getElementById('search-bar'),
+            searchInput: document.getElementById('search-input'),
+            searchResults: document.getElementById('search-results'),
+            welcomeFrame: document.getElementById('welcome-frame'),
+            fileInput: document.getElementById('file-input'),
+            currentFolderTitle: document.getElementById('current-folder'),
+            currentFileTitle: document.getElementById('current-title'),
+            modifiedIndicator: document.getElementById('modified-indicator'),
+            currentPathDisplay: document.getElementById('current-path'),
+            fileSubmenu: document.getElementById('file-submenu'),
+            themeSubmenu: document.getElementById('theme-submenu'),
+            // Chatbot DOM elements
+            chatbotPanel: document.getElementById('chatbot-panel'),
+            chatbotResizer: document.getElementById('chatbot-resizer'),
+            toggleChatbotBtn: document.getElementById('toggle-chatbot-btn'),
+            chatbotMessages: document.getElementById('chatbot-messages'),
+            chatbotInputForm: document.getElementById('chatbot-input-form'),
+            chatbotInput: document.getElementById('chatbot-input'),
+            chatbotSendBtn: document.getElementById('chatbot-send-btn'),
+            // Terminal DOM elements
+            terminalContainer: document.getElementById('terminal-container'),
+            terminal: document.getElementById('terminal'),
+            terminalResizer: document.getElementById('terminal-resizer'),
+            // Auth DOM elements
+            authOverlay: document.getElementById('auth-overlay'),
+            authTitle: document.getElementById('auth-title'),
+            authSubtitle: document.getElementById('auth-subtitle'),
+            authMessage: document.getElementById('auth-message'),
+            authForm: document.getElementById('auth-form'),
+            authUsername: document.getElementById('auth-username'),
+            authTotp: document.getElementById('auth-totp'),
+            authSubmit: document.getElementById('auth-submit'),
+            authSwitchText: document.getElementById('auth-switch-text'),
+            authSwitchLink: document.getElementById('auth-switch-link'),
+            qrSection: document.getElementById('qr-section'),
+            qrCodeImg: document.getElementById('qr-code-img'),
+            backupKey: document.getElementById('backup-key'),
+            totpGroup: document.getElementById('totp-group'),
+            userStatus: document.getElementById('user-status'),
+            userAvatar: document.getElementById('user-avatar'),
+            userName: document.getElementById('user-name'),
+            // Diary DOM elements
+            diaryPanel: document.getElementById('diary-panel'),
+            diaryResizer: document.getElementById('diary-resizer'),
+            diaryContent: document.getElementById('diary-content'),
+            diaryForm: document.getElementById('diary-form'),
+            diaryTitleInput: document.getElementById('diary-title-input'),
+            diaryContentInput: document.getElementById('diary-content-input'),
+            diaryCodeInput: document.getElementById('diary-code-input'),
+            diaryNewBtn: document.getElementById('diary-new-btn'),
+            diarySaveBtn: document.getElementById('diary-save-btn'),
+            diaryCancelBtn: document.getElementById('diary-cancel-btn'),
+            diaryExportBtn: document.getElementById('diary-export-btn'),
+            diaryImportBtn: document.getElementById('diary-import-btn'),
+        };
+        
+        // --- ESTADO DA APLICAÇÃO ---
+        let state = {
+            currentFilePath: null,
+            isModified: false,
+            currentDirPath: null,
+            navigationHistory: [],
+            selectedTreeItem: null, // Guarda o elemento DOM do item selecionado na árvore
+            search: {
+                matches: [],
+                currentIndex: -1,
+            },
+            terminal: {
+                currentLine: '',
+                promptStr: '> ',
+                inputLineElem: null,
+            },
+            auth: {
+                isLoggedIn: false,
+                token: null,
+                username: null,
+                isRegistering: false,
+                pendingRegistration: null,
+            },
+            diary: {
+                entries: [],
+                editingEntry: null,
+            }
+        };
+
+        // NOVO: Função para carregar preferências salvas
+        function loadPreferences() {
+            // Carrega o tema salvo
+            const savedTheme = localStorage.getItem('arys-editor-theme');
+            if (savedTheme) {
+                dom.body.className = savedTheme;
+            }
+            // Carrega token de autenticação
+            const savedToken = localStorage.getItem('syra-auth-token');
+            const savedUsername = localStorage.getItem('syra-username');
+            if (savedToken && savedUsername) {
+                state.auth.token = savedToken;
+                state.auth.username = savedUsername;
+                state.auth.isLoggedIn = true;
+                updateUserStatus();
+            }
+            // Carrega entradas do diário
+            const savedDiary = localStorage.getItem('arys-diary-entries');
+            if (savedDiary) {
+                try {
+                    state.diary.entries = JSON.parse(savedDiary);
+                    diaryLogic.renderEntries();
+                } catch (e) {
+                    console.error('Erro ao carregar diário:', e);
+                }
+            }
+        }
+
+        // --- LÓGICA DO DIÁRIO DE DESENVOLVIMENTO ---
+        const diaryLogic = {
+            saveDiary: () => {
+                localStorage.setItem('arys-diary-entries', JSON.stringify(state.diary.entries));
+            },
+
+            generateId: () => {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            },
+
+            formatDate: (timestamp) => {
+                return new Date(timestamp).toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            },
+
+            showForm: (entry = null) => {
+                state.diary.editingEntry = entry;
+                if (entry) {
+                    dom.diaryTitleInput.value = entry.title;
+                    dom.diaryContentInput.value = entry.content;
+                    dom.diaryCodeInput.value = entry.code || '';
+                } else {
+                    dom.diaryTitleInput.value = '';
+                    dom.diaryContentInput.value = '';
+                    dom.diaryCodeInput.value = '';
+                }
+                dom.diaryForm.classList.remove('hidden');
+                dom.diaryTitleInput.focus();
+            },
+
+            hideForm: () => {
+                dom.diaryForm.classList.add('hidden');
+                state.diary.editingEntry = null;
+            },
+
+            saveEntry: () => {
+                const title = dom.diaryTitleInput.value.trim();
+                const content = dom.diaryContentInput.value.trim();
+                const code = dom.diaryCodeInput.value.trim();
+
+                if (!title || !content) {
+                    alert('Título e conteúdo são obrigatórios');
+                    return;
+                }
+
+                const entry = {
+                    id: state.diary.editingEntry ? state.diary.editingEntry.id : diaryLogic.generateId(),
+                    title,
+                    content,
+                    code: code || null,
+                    timestamp: state.diary.editingEntry ? state.diary.editingEntry.timestamp : Date.now(),
+                    lastModified: Date.now()
+                };
+
+                if (state.diary.editingEntry) {
+                    const index = state.diary.entries.findIndex(e => e.id === entry.id);
+                    state.diary.entries[index] = entry;
+                } else {
+                    state.diary.entries.unshift(entry);
+                }
+
+                diaryLogic.saveDiary();
+                diaryLogic.renderEntries();
+                diaryLogic.hideForm();
+            },
+
+            deleteEntry: (id) => {
+                if (confirm('Tem certeza que deseja excluir esta anotação?')) {
+                    state.diary.entries = state.diary.entries.filter(e => e.id !== id);
+                    diaryLogic.saveDiary();
+                    diaryLogic.renderEntries();
+                }
+            },
+
+            renderEntries: () => {
+                if (state.diary.entries.length === 0) {
+                    dom.diaryContent.innerHTML = `
+                        <div class="diary-empty">
+                            Nenhuma anotação ainda.<br>
+                            Clique em + para criar sua primeira anotação.
+                        </div>
+                    `;
+                    return;
+                }
+
+                dom.diaryContent.innerHTML = state.diary.entries.map(entry => `
+                    <div class="diary-entry">
+                        <div class="diary-entry-header">
+                            <div class="diary-entry-date">${diaryLogic.formatDate(entry.timestamp)}</div>
+                            <div class="diary-entry-actions">
+                                <button class="diary-entry-btn" onclick="diaryLogic.showForm(state.diary.entries.find(e => e.id === '${entry.id}'))">✏️</button>
+                                <button class="diary-entry-btn delete" onclick="diaryLogic.deleteEntry('${entry.id}')">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="diary-entry-title">${entry.title}</div>
+                        <div class="diary-entry-content">${entry.content}</div>
+                        ${entry.code ? `<div class="diary-entry-code">${entry.code}</div>` : ''}
+                    </div>
+                `).join('');
+            },
+
+            exportDiary: () => {
+                const data = {
+                    exportDate: new Date().toISOString(),
+                    entries: state.diary.entries
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `diary-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            },
+
+            importDiary: () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (data.entries && Array.isArray(data.entries)) {
+                                if (confirm('Isso substituirá todas as anotações existentes. Continuar?')) {
+                                    state.diary.entries = data.entries;
+                                    diaryLogic.saveDiary();
+                                    diaryLogic.renderEntries();
+                                    alert('Diário importado com sucesso!');
+                                }
+                            } else {
+                                alert('Arquivo JSON inválido');
+                            }
+                        } catch (err) {
+                            alert('Erro ao ler arquivo: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            }
+        };
+
+        // --- LÓGICA DE TEMAS PERSONALIZÁVEIS ---
+        const themeLogic = {
+            uploadCustomTheme: () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const themeData = JSON.parse(e.target.result);
+                            if (themeLogic.validateTheme(themeData)) {
+                                themeLogic.applyCustomTheme(themeData);
+                                localStorage.setItem('arys-custom-theme', JSON.stringify(themeData));
+                                localStorage.setItem('arys-editor-theme', 'theme-custom');
+                                alert('Tema personalizado aplicado com sucesso!');
+                            } else {
+                                alert('Arquivo de tema inválido. Verifique a estrutura JSON.');
+                            }
+                        } catch (err) {
+                            alert('Erro ao ler arquivo de tema: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            },
+
+            validateTheme: (theme) => {
+                const requiredProps = ['name', 'colors', 'fonts'];
+                return requiredProps.every(prop => theme.hasOwnProperty(prop)) &&
+                       theme.colors && typeof theme.colors === 'object' &&
+                       theme.fonts && typeof theme.fonts === 'object';
+            },
+
+            applyCustomTheme: (theme) => {
+                // Remove tema customizado anterior
+                const existingStyle = document.getElementById('custom-theme-style');
+                if (existingStyle) {
+                    existingStyle.remove();
+                }
+
+                // Cria novo estilo customizado
+                const style = document.createElement('style');
+                style.id = 'custom-theme-style';
+                
+                let css = '.theme-custom {\n';
+                
+                // Aplica cores
+                if (theme.colors) {
+                    Object.entries(theme.colors).forEach(([key, value]) => {
+                        css += `  --${key}: ${value};\n`;
+                    });
+                }
+                
+                css += '}\n';
+                
+                // Aplica fontes
+                if (theme.fonts) {
+                    if (theme.fonts.primary) {
+                        css += `.theme-custom { font-family: ${theme.fonts.primary}; }\n`;
+                    }
+                    if (theme.fonts.code) {
+                        css += `.theme-custom .editor-textarea, .theme-custom .terminal, .theme-custom .diary-code-input, .theme-custom .diary-entry-code { font-family: ${theme.fonts.code}; }\n`;
+                    }
+                }
+                
+                // Aplica estilos adicionais
+                if (theme.styles) {
+                    Object.entries(theme.styles).forEach(([selector, rules]) => {
+                        css += `.theme-custom ${selector} {\n`;
+                        Object.entries(rules).forEach(([prop, value]) => {
+                            css += `  ${prop}: ${value};\n`;
+                        });
+                        css += '}\n';
+                    });
+                }
+                
+                style.textContent = css;
+                document.head.appendChild(style);
+                
+                // Aplica o tema
+                dom.body.className = 'theme-custom';
+            },
+
+            loadCustomTheme: () => {
+                const savedTheme = localStorage.getItem('arys-custom-theme');
+                if (savedTheme) {
+                    try {
+                        const themeData = JSON.parse(savedTheme);
+                        themeLogic.applyCustomTheme(themeData);
+                    } catch (e) {
+                        console.error('Erro ao carregar tema customizado:', e);
+                    }
+                }
+            },
+
+            exportCurrentTheme: () => {
+                const currentTheme = dom.body.className.replace('theme-', '');
+                let themeData;
+                
+                if (currentTheme === 'custom') {
+                    const savedTheme = localStorage.getItem('arys-custom-theme');
+                    if (savedTheme) {
+                        themeData = JSON.parse(savedTheme);
+                    } else {
+                        alert('Nenhum tema personalizado encontrado');
+                        return;
+                    }
+                } else {
+                    // Exporta tema padrão
+                    themeData = themeLogic.getDefaultThemeData(currentTheme);
+                }
+                
+                const blob = new Blob([JSON.stringify(themeData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `theme-${currentTheme}-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            },
+
+            getDefaultThemeData: (themeName) => {
+                const themes = {
+                    dark: {
+                        name: 'Tema Escuro',
+                        colors: {
+                            'bg-primary': '#1e1e1e',
+                            'bg-secondary': '#252526',
+                            'bg-tertiary': '#2d2d30',
+                            'text-primary': '#cccccc',
+                            'text-secondary': '#969696',
+                            'text-muted': '#6a6a6a',
+                            'border-color': '#3e3e42',
+                            'accent-color': '#007acc',
+                            'hover-bg': '#2a2d2e',
+                            'delete-color': '#f44336'
+                        },
+                        fonts: {
+                            primary: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                            code: '"Fira Code", "Cascadia Code", Consolas, monospace'
+                        }
+                    },
+                    white: {
+                        name: 'Tema Claro',
+                        colors: {
+                            'bg-primary': '#ffffff',
+                            'bg-secondary': '#f8f8f8',
+                            'bg-tertiary': '#f0f0f0',
+                            'text-primary': '#333333',
+                            'text-secondary': '#666666',
+                            'text-muted': '#999999',
+                            'border-color': '#e0e0e0',
+                            'accent-color': '#007acc',
+                            'hover-bg': '#f0f0f0',
+                            'delete-color': '#d32f2f'
+                        },
+                        fonts: {
+                            primary: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                            code: '"Fira Code", "Cascadia Code", Consolas, monospace'
+                        }
+                    },
+                    red: {
+                        name: 'Tema Vermelho',
+                        colors: {
+                            'bg-primary': '#2b1b1b',
+                            'bg-secondary': '#3d2626',
+                            'bg-tertiary': '#4a2c2c',
+                            'text-primary': '#ffcccc',
+                            'text-secondary': '#cc9999',
+                            'text-muted': '#996666',
+                            'border-color': '#5c3333',
+                            'accent-color': '#ff6b6b',
+                            'hover-bg': '#4a2c2c',
+                            'delete-color': '#ff4444'
+                        },
+                        fonts: {
+                            primary: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                            code: '"Fira Code", "Cascadia Code", Consolas, monospace'
+                        }
+                    }
+                };
+                return themes[themeName] || themes.dark;
+            }
+        };
+
+        // --- LÓGICA DE AUTENTICAÇÃO SYRAID ---
+        const authLogic = {
+            API_BASE: 'https://api.syradevops.com',
+
+            showMessage: (message, type = 'error') => {
+                dom.authMessage.innerHTML = `<div class="auth-${type}">${message}</div>`;
+            },
+
+            clearMessage: () => {
+                dom.authMessage.innerHTML = '';
+            },
+
+            showAuth: () => {
+                dom.authOverlay.classList.add('visible');
+                dom.authUsername.focus();
+            },
+
+            hideAuth: () => {
+                dom.authOverlay.classList.remove('visible');
+                authLogic.clearMessage();
+                dom.authForm.reset();
+                dom.qrSection.style.display = 'none';
+                dom.totpGroup.style.display = 'block';
+            },
+
+            toggleMode: () => {
+                state.auth.isRegistering = !state.auth.isRegistering;
+                if (state.auth.isRegistering) {
+                    dom.authTitle.textContent = 'Registro SyraID';
+                    dom.authSubtitle.textContent = 'Crie sua conta SyraID';
+                    dom.authSubmit.textContent = 'Registrar';
+                    dom.authSwitchText.textContent = 'Já tem uma conta?';
+                    dom.authSwitchLink.textContent = 'Entrar';
+                } else {
+                    dom.authTitle.textContent = 'Login SyraID';
+                    dom.authSubtitle.textContent = 'Entre com sua conta SyraID';
+                    dom.authSubmit.textContent = 'Entrar';
+                    dom.authSwitchText.textContent = 'Não tem uma conta?';
+                    dom.authSwitchLink.textContent = 'Registrar';
+                    dom.qrSection.style.display = 'none';
+                    dom.totpGroup.style.display = 'block';
+                }
+                authLogic.clearMessage();
+            },
+
+            register: async (username) => {
+                try {
+                    dom.authSubmit.disabled = true;
+                    dom.authSubmit.textContent = 'Registrando...';
+                    
+                    const response = await fetch(`${authLogic.API_BASE}/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username }),
+                    });
+
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Erro no registro');
+                    }
+
+                    // Mostra QR Code e chave de backup
+                    dom.qrCodeImg.src = data.qr_code_image;
+                    dom.backupKey.textContent = data.secret_backup_key;
+                    dom.qrSection.style.display = 'block';
+                    dom.totpGroup.style.display = 'block';
+                    
+                    state.auth.pendingRegistration = username;
+                    dom.authSubmit.textContent = 'Verificar Código';
+                    authLogic.showMessage('Escaneie o QR Code com seu app de autenticação e digite o código gerado.', 'success');
+                    
+                } catch (error) {
+                    authLogic.showMessage(error.message);
+                } finally {
+                    dom.authSubmit.disabled = false;
+                }
+            },
+
+            verify: async (username, totpCode) => {
+                try {
+                    dom.authSubmit.disabled = true;
+                    dom.authSubmit.textContent = 'Verificando...';
+                    
+                    const response = await fetch(`${authLogic.API_BASE}/auth/verify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, totp_code: totpCode }),
+                    });
+
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Erro na verificação');
+                    }
+
+                    authLogic.showMessage('Conta criada com sucesso! Agora você pode fazer login.', 'success');
+                    setTimeout(() => {
+                        state.auth.isRegistering = false;
+                        state.auth.pendingRegistration = null;
+                        authLogic.toggleMode();
+                    }, 2000);
+                    
+                } catch (error) {
+                    authLogic.showMessage(error.message);
+                } finally {
+                    dom.authSubmit.disabled = false;
+                    dom.authSubmit.textContent = 'Verificar Código';
+                }
+            },
+
+            login: async (username, totpCode) => {
+                try {
+                    dom.authSubmit.disabled = true;
+                    dom.authSubmit.textContent = 'Entrando...';
+                    
+                    const response = await fetch(`${authLogic.API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, totp_code: totpCode }),
+                    });
+
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Erro no login');
+                    }
+
+                    // Salva token e dados do usuário
+                    state.auth.token = data.token;
+                    state.auth.username = username;
+                    state.auth.isLoggedIn = true;
+                    
+                    localStorage.setItem('syra-auth-token', data.token);
+                    localStorage.setItem('syra-username', username);
+                    
+                    updateUserStatus();
+                    authLogic.hideAuth();
+                    authLogic.showMessage('Login realizado com sucesso!', 'success');
+                    
+                } catch (error) {
+                    authLogic.showMessage(error.message);
+                } finally {
+                    dom.authSubmit.disabled = false;
+                    dom.authSubmit.textContent = 'Entrar';
+                }
+            },
+
+            logout: () => {
+                state.auth.isLoggedIn = false;
+                state.auth.token = null;
+                state.auth.username = null;
+                
+                localStorage.removeItem('syra-auth-token');
+                localStorage.removeItem('syra-username');
+                
+                updateUserStatus();
+            },
+
+            handleSubmit: async (e) => {
+                e.preventDefault();
+                authLogic.clearMessage();
+                
+                const username = dom.authUsername.value.trim().toLowerCase();
+                const totpCode = dom.authTotp.value.trim();
+                
+                if (!username) {
+                    authLogic.showMessage('Nome de usuário é obrigatório');
+                    return;
+                }
+
+                if (state.auth.isRegistering) {
+                    if (state.auth.pendingRegistration) {
+                        if (!totpCode) {
+                            authLogic.showMessage('Código TOTP é obrigatório');
+                            return;
+                        }
+                        await authLogic.verify(username, totpCode);
+                    } else {
+                        await authLogic.register(username);
+                    }
+                } else {
+                    if (!totpCode) {
+                        authLogic.showMessage('Código TOTP é obrigatório');
+                        return;
+                    }
+                    await authLogic.login(username, totpCode);
+                }
+            }
+        };
+
+        function updateUserStatus() {
+            if (state.auth.isLoggedIn) {
+                dom.userStatus.classList.add('visible');
+                dom.userAvatar.textContent = state.auth.username.charAt(0).toUpperCase();
+                dom.userName.textContent = state.auth.username;
+                document.getElementById('auth-toggle').title = 'Logout';
+            } else {
+                dom.userStatus.classList.remove('visible');
+                document.getElementById('auth-toggle').title = 'Login SyraID';
+            }
+        }
+
+        // --- FUNÇÕES DE UI E EDITOR ---
+        function updateTitleBar() {
+            dom.currentFileTitle.textContent = state.currentFilePath ? path.basename(state.currentFilePath) : 'Sem Título';
+            dom.currentFileTitle.title = state.currentFilePath || '';
+            dom.modifiedIndicator.textContent = state.isModified ? '●' : '';
+        }
+
+        function createNewFile() {
+            dom.textEditor.value = '';
+            state.currentFilePath = null;
+            state.isModified = false;
+            updateLineNumbers();
+            updateTitleBar();
+            toggleWelcomePage(false);
+            dom.textEditor.focus();
+        }
+
+        function toggleWelcomePage(show) {
+            dom.welcomeFrame.style.display = show ? 'block' : 'none';
+            const editorVisible = !show;
+            document.querySelector('.editor-wrapper').style.display = editorVisible ? 'flex' : 'none';
+            dom.lineNumbers.style.display = editorVisible ? 'block' : 'none';
+            if (editorVisible) dom.textEditor.focus();
+        }
+
+        function updateLineNumbers() {
+            const lineCount = dom.textEditor.value.split('\n').length || 1;
+            dom.lineNumbers.innerHTML = Array.from({ length: lineCount }, (_, i) => `<div>${i + 1}</div>`).join('');
+            syncScroll();
+        }
+
+        function syncScroll() {
+            dom.lineNumbers.scrollTop = dom.textEditor.scrollTop;
+            dom.editorBackdrop.scrollTop = dom.textEditor.scrollTop;
+            dom.editorBackdrop.scrollLeft = dom.textEditor.scrollLeft;
+        }
+
+        // --- FUNÇÕES DE ARQUIVO (Abrir, Salvar) ---
+        async function openFile(filePath) {
+            try {
+                const content = await fs.promises.readFile(filePath, 'utf-8');
+                dom.textEditor.value = content;
+                state.currentFilePath = filePath;
+                state.isModified = false;
+                dom.currentFolderTitle.textContent = path.basename(path.dirname(filePath));
+                dom.currentFolderTitle.title = path.dirname(filePath);
+                updateTitleBar();
+                updateLineNumbers();
+                toggleWelcomePage(false);
+                dom.textEditor.scrollTop = 0;
+            } catch (err) { alert('Erro ao abrir arquivo: ' + err.message); }
+        }
+        
+        async function handleSave(isSaveAs = false) {
+            let savePath = state.currentFilePath;
+            
+            if (isSaveAs || !savePath) {
+                const result = await ipcRenderer.invoke('show-save-dialog');
+                if (result.canceled || !result.filePath) return;
+                savePath = result.filePath;
+            }
+
+            try {
+                await fs.promises.writeFile(savePath, dom.textEditor.value);
+                state.isModified = false;
+                if (savePath !== state.currentFilePath) {
+                    state.currentFilePath = savePath;
+                    dom.currentFolderTitle.textContent = path.basename(path.dirname(savePath));
+                    dom.currentFolderTitle.title = path.dirname(savePath);
+                }
+                updateTitleBar();
+                if (state.currentDirPath && path.dirname(savePath) === state.currentDirPath) {
+                    loadDirectory(state.currentDirPath, false);
+                }
+            } catch (err) { alert('Erro ao salvar arquivo: ' + err.message); }
+        }
+
+        // --- LÓGICA DO EXPLORADOR DE ARQUIVOS ---
+        async function loadDirectory(dirPath, addToHistory = true) {
+            try {
+                if (addToHistory && state.currentDirPath) state.navigationHistory.push(state.currentDirPath);
+                state.currentDirPath = dirPath;
+                dom.currentFolderTitle.textContent = path.basename(dirPath);
+                dom.currentFolderTitle.title = dirPath;
+                dom.currentPathDisplay.textContent = dirPath;
+                
+                const items = await fs.promises.readdir(dirPath, { withFileTypes: true });
+                const sorted = items
+                    .map(item => ({ name: item.name, isDirectory: item.isDirectory(), path: path.join(dirPath, item.name) }))
+                    .sort((a, b) => (a.isDirectory === b.isDirectory) ? a.name.localeCompare(b.name) : a.isDirectory ? -1 : 1);
+                
+                renderFileTree(sorted);
+                if (!dom.fileExplorer.classList.contains('visible')) {
+                    dom.fileExplorer.classList.add('visible');
+                    document.getElementById('explorer-resizer').style.display = 'block';
+                }
+            } catch (err) { console.error('Erro ao carregar diretório:', err); alert("Não foi possível carregar o diretório."); }
+        }
+
+        function renderFileTree(items) {
+            dom.fileTree.innerHTML = '';
+            items.forEach(item => { dom.fileTree.appendChild(createFileTreeItem(item)); });
+            state.selectedTreeItem = null;
+        }
+        
+        function createFileTreeItem(item) {
+            const isFolder = item.isDirectory;
+            const element = document.createElement('div');
+            
+            element.dataset.path = item.path;
+            element.dataset.type = isFolder ? 'folder' : 'file';
+
+            const selectItem = (el) => {
+                if (state.selectedTreeItem) state.selectedTreeItem.classList.remove('selected');
+                state.selectedTreeItem = el;
+                state.selectedTreeItem.classList.add('selected');
+                dom.fileTree.focus();
+            };
+            
+            if (isFolder) {
+                element.className = 'folder';
+                const header = document.createElement('div');
+                header.className = 'folder-header';
+                header.dataset.path = item.path;
+                header.dataset.type = 'folder';
+                header.innerHTML = `<span class="folder-arrow">${CHEVRON_RIGHT_SVG}</span><span class="file-icon-wrapper">${FOLDER_ICON_SVG}</span><span>${item.name}</span>`;
+                
+                const content = document.createElement('div');
+                content.className = 'folder-content';
+                element.append(header, content);
+
+                header.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    selectItem(header);
+                    if (element.classList.toggle('expanded') && content.children.length === 0) {
+                        const subItems = await fs.promises.readdir(item.path, { withFileTypes: true });
+                        const sorted = subItems.map(sub => ({ name: sub.name, isDirectory: sub.isDirectory(), path: path.join(item.path, sub.name) })).sort((a, b) => (a.isDirectory === b.isDirectory) ? a.name.localeCompare(b.name) : a.isDirectory ? -1 : 1);
+                        sorted.forEach(subItem => content.appendChild(createFileTreeItem(subItem)));
+                    }
+                });
+                return element;
+            } else {
+                element.className = 'file-item file';
+                element.innerHTML = `<span class="file-icon-wrapper">${FILE_ICON_SVG}</span><span>${item.name}</span>`;
+                element.addEventListener('click', (e) => { e.stopPropagation(); selectItem(element); });
+                element.addEventListener('dblclick', () => openFile(item.path));
+                return element;
+            }
+        }
+        
+        function initNewItemInExplorer(isFolder = false) {
+            if (!state.currentDirPath) { alert("Abra uma pasta primeiro."); return; }
+            document.querySelector('.new-item-input-wrapper')?.remove();
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'new-item-input-wrapper';
+            const icon = isFolder ? FOLDER_ICON_SVG : FILE_ICON_SVG;
+            wrapper.innerHTML = `<span class="file-icon-wrapper">${icon}</span><input type="text" class="new-item-input">`;
+            const input = wrapper.querySelector('input');
+            dom.fileTree.prepend(wrapper);
+            input.focus();
+
+            const createAction = async () => {
+                const name = input.value.trim();
+                if (name) {
+                    const newPath = path.join(state.currentDirPath, name);
+                    try {
+                        if (isFolder) {
+                            await fs.promises.mkdir(newPath);
+                        } else {
+                            await fs.promises.writeFile(newPath, '');
+                        }
+                        await loadDirectory(state.currentDirPath, false);
+                    } catch (e) { alert(`Erro ao criar ${isFolder ? 'pasta' : 'arquivo'}: ${e.message}`); }
+                }
+                wrapper.remove();
+            };
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') createAction(); if (e.key === 'Escape') wrapper.remove(); });
+            input.addEventListener('blur', createAction);
+        }
+
+        async function handleDeleteSelectedItem() {
+             if (!state.selectedTreeItem) return;
+            const itemPath = state.selectedTreeItem.dataset.path;
+            const itemType = state.selectedTreeItem.dataset.type;
+            const itemName = path.basename(itemPath);
+
+            const confirmation = confirm(`Tem certeza que deseja apagar ${itemType === 'folder' ? 'a pasta' : 'o arquivo'} "${itemName}"? Esta ação não pode ser desfeita.`);
+
+            if (confirmation) {
+                try {
+                    await fs.promises.rm(itemPath, { recursive: true, force: true });
+                    if (itemPath === state.currentFilePath) {
+                        createNewFile();
+                    }
+                    await loadDirectory(state.currentDirPath, false);
+                } catch (e) {
+                    alert(`Erro ao apagar: ${e.message}`);
+                }
+            }
+        }
+
+        // --- LÓGICA DO REDIMENSIONADOR ---
+        function initResizer(resizerEl, panelEl, isVertical = false) {
+            let isResizing = false;
+            resizerEl.addEventListener('mousedown', () => { 
+                isResizing = true; 
+                resizerEl.classList.add('resizing'); 
+                dom.body.style.cursor = isVertical ? 'row-resize' : 'col-resize'; 
+            });
+            document.addEventListener('mousemove', (e) => { 
+                if (!isResizing) return;
+                if (isVertical) {
+                    const newHeight = window.innerHeight - e.clientY;
+                    panelEl.style.height = `${newHeight}px`;
+                } else {
+                    const newWidth = panelEl.classList.contains('chatbot-panel') ? window.innerWidth - e.clientX : e.clientX;
+                    panelEl.style.width = `${newWidth}px`; 
+                }
+            });
+            document.addEventListener('mouseup', () => { 
+                if(isResizing) { 
+                    isResizing = false; 
+                    resizerEl.classList.remove('resizing'); 
+                    dom.body.style.cursor = 'default';
+                } 
+            });
+        }
+
+        // --- LÓGICA DA BUSCA (CTRL+F) ---
+        function initSearch() {
+            const performSearch = () => {
+                const query = dom.searchInput.value;
+                if (!query) {
+                    dom.highlights.innerHTML = '';
+                    dom.searchResults.textContent = '0/0';
+                    return;
+                }
+                const regex = new RegExp(query, 'gi');
+                state.search.matches = [...dom.textEditor.value.matchAll(regex)];
+                dom.highlights.innerHTML = dom.textEditor.value.replace(regex, (match) => `<span class="highlight">${match}</span>`);
+                state.search.currentIndex = -1;
+                updateSearchResults();
+                if (state.search.matches.length > 0) scrollToMatch(0);
+            };
+            const updateSearchResults = () => dom.searchResults.textContent = `${state.search.currentIndex + 1}/${state.search.matches.length}`;
+            const scrollToMatch = (index) => {
+                if(index < 0 || index >= state.search.matches.length) return;
+                state.search.currentIndex = index;
+                document.querySelectorAll('#highlights .highlight.active').forEach(el => el.classList.remove('active'));
+                const allHighlights = document.querySelectorAll('#highlights .highlight');
+                if (allHighlights[index]) allHighlights[index].classList.add('active');
+                
+                const match = state.search.matches[index];
+                const textBeforeMatch = dom.textEditor.value.substring(0, match.index);
+                const lineCount = textBeforeMatch.split('\n').length;
+                const lineHeight = parseFloat(getComputedStyle(dom.textEditor).lineHeight);
+                dom.textEditor.scrollTop = (lineCount - 5) * lineHeight;
+                updateSearchResults();
+            };
+
+            dom.searchInput.addEventListener('input', performSearch);
+            document.getElementById('search-next').addEventListener('click', () => scrollToMatch((state.search.currentIndex + 1) % state.search.matches.length));
+            document.getElementById('search-prev').addEventListener('click', () => scrollToMatch((state.search.currentIndex - 1 + state.search.matches.length) % state.search.matches.length));
+            document.getElementById('search-close').addEventListener('click', () => dom.searchBar.classList.add('hidden'));
+        }
+
+        // --- LÓGICA DO CHATBOT (LUNA AI) ---
+        const chatbotLogic = {
+            API_BASE: 'https://api.syradevops.com', // API do seu exemplo
+            currentModel: 'Luna_Base',
+            currentContext: null,
+
+            isScrolledToBottom: () => dom.chatbotMessages.scrollHeight - dom.chatbotMessages.clientHeight <= dom.chatbotMessages.scrollTop + 100,
+            
+            scrollToBottom: (force = false) => {
+                if (force || chatbotLogic.isScrolledToBottom()) {
+                    dom.chatbotMessages.scrollTo({ top: dom.chatbotMessages.scrollHeight, behavior: 'smooth' });
+                }
+            },
+
+            addMessage: (text, sender) => {
+                const messageEl = document.createElement('div');
+                messageEl.className = `message-bubble ${sender}-message`;
+                messageEl.textContent = text;
+                dom.chatbotMessages.appendChild(messageEl);
+                chatbotLogic.scrollToBottom(true);
+            },
+
+            showTypingIndicator: () => {
+                chatbotLogic.hideTypingIndicator();
+                const typingEl = document.createElement('div');
+                typingEl.id = 'typing-indicator';
+                typingEl.className = 'message-bubble luna-message';
+                typingEl.innerHTML = `<div class="typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+                dom.chatbotMessages.appendChild(typingEl);
+                chatbotLogic.scrollToBottom(true);
+            },
+
+            hideTypingIndicator: () => {
+                document.getElementById('typing-indicator')?.remove();
+            },
+
+            sendMessage: async (message) => {
+                message = message.trim();
+                if (!message) return;
+                
+                chatbotLogic.addMessage(message, 'user');
+                dom.chatbotInput.value = '';
+                dom.chatbotInput.style.height = '38px';
+                dom.chatbotInput.disabled = true;
+                dom.chatbotSendBtn.disabled = true;
+                chatbotLogic.showTypingIndicator();
+
+                try {
+                    const response = await fetch(`${chatbotLogic.API_BASE}/chat`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ message, model_name: chatbotLogic.currentModel, context: chatbotLogic.currentContext }),
+                    });
+
+                    chatbotLogic.hideTypingIndicator();
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ detail: 'Resposta inválida da API' }));
+                        throw new Error(errorData.detail || 'Falha na resposta da API');
+                    }
+                    
+                    const data = await response.json();
+                    chatbotLogic.addMessage(data.response, 'luna');
+                    
+                } catch (error) {
+                    chatbotLogic.hideTypingIndicator();
+                    chatbotLogic.addMessage(`Desculpe, ocorreu um erro: ${error.message}`, 'luna');
+                } finally {
+                    dom.chatbotInput.disabled = false;
+                    dom.chatbotSendBtn.disabled = false;
+                    dom.chatbotInput.focus();
+                }
+            }
+        };
+
+        function initChatbot() {
+            dom.chatbotInputForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                chatbotLogic.sendMessage(dom.chatbotInput.value);
+            });
+
+            dom.chatbotInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    chatbotLogic.sendMessage(dom.chatbotInput.value);
+                }
+            });
+
+            dom.chatbotInput.addEventListener('input', () => {
+                dom.chatbotInput.style.height = 'auto';
+                const newHeight = Math.min(dom.chatbotInput.scrollHeight, 120);
+                dom.chatbotInput.style.height = `${newHeight}px`;
+            });
+            
+            chatbotLogic.addMessage('Olá! Sou a Luna, sua assistente de IA. Como posso ajudar?', 'luna');
+        }
+
+        // --- LÓGICA DO TERMINAL INTEGRADO ---
+        const terminalLogic = {
+            appendLine: (text, isPrompt = false) => {
+                const lineElem = document.createElement('div');
+                lineElem.classList.add('terminal-line');
+                if (isPrompt) {
+                    lineElem.innerHTML = `<span class="terminal-prompt">${state.terminal.promptStr}</span>${terminalLogic.escapeHtml(text)}<span class="terminal-cursor"></span>`;
+                } else {
+                    lineElem.textContent = text;
+                }
+                dom.terminal.appendChild(lineElem);
+                dom.terminal.scrollTop = dom.terminal.scrollHeight;
+                return lineElem;
+            },
+
+            escapeHtml: (text) => {
+                return text.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[m]);
+            },
+
+            updateInputLine: () => {
+                state.terminal.inputLineElem.innerHTML = `<span class="terminal-prompt">${state.terminal.promptStr}</span>${terminalLogic.escapeHtml(state.terminal.currentLine)}<span class="terminal-cursor"></span>`;
+                dom.terminal.scrollTop = dom.terminal.scrollHeight;
+            },
+
+            executeCommand: (cmd) => {
+                if (!cmd.trim()) return;
+                state.terminal.inputLineElem.innerHTML = `<span class="terminal-prompt">${state.terminal.promptStr}</span>${terminalLogic.escapeHtml(cmd)}`;
+                ipcRenderer.send('executar-comando', { comando: cmd, cwd: state.currentDirPath });
+                state.terminal.inputLineElem = terminalLogic.appendLine('', true);
+                state.terminal.currentLine = '';
+            },
+
+            init: () => {
+                terminalLogic.appendLine(`Terminal Arys. Digite 'help' para obter ajuda.`);
+                state.terminal.inputLineElem = terminalLogic.appendLine('', true);
+                dom.terminal.addEventListener('keydown', e => {
+                    e.preventDefault();
+                    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        state.terminal.currentLine += e.key;
+                        terminalLogic.updateInputLine();
+                    } else if (e.key === 'Backspace') {
+                        state.terminal.currentLine = state.terminal.currentLine.slice(0, -1);
+                        terminalLogic.updateInputLine();
+                    } else if (e.key === 'Enter') {
+                        terminalLogic.executeCommand(state.terminal.currentLine);
+                    }
+                });
+            }
+        };
+
+        // --- INICIALIZAÇÃO E EVENT LISTENERS ---
+        function init() {
+            // NOVO: Carrega as preferências do usuário ao iniciar
+            loadPreferences();
+
+            // Atalhos globais
+            window.addEventListener('keydown', (e) => {
+                if (e.ctrlKey) {
+                    if (e.key.toLowerCase() === 's') { e.preventDefault(); handleSave(e.shiftKey); }
+                    if (e.key.toLowerCase() === 'n') { e.preventDefault(); createNewFile(); }
+                    if (e.key.toLowerCase() === 'f') { e.preventDefault(); dom.searchBar.classList.remove('hidden'); dom.searchInput.focus(); dom.searchInput.select(); }
+                }
+                if (e.key === 'Escape' && !dom.searchBar.classList.contains('hidden')) { e.preventDefault(); dom.searchBar.classList.add('hidden'); }
+            });
+
+            // Eventos do Editor de Texto
+            dom.textEditor.addEventListener('input', () => {
+                if (!state.isModified) { state.isModified = true; updateTitleBar(); }
+                updateLineNumbers();
+                if (!dom.searchBar.classList.contains('hidden')) {
+                    const query = dom.searchInput.value;
+                    if(query) {
+                        dom.highlights.innerHTML = dom.textEditor.value.replace(new RegExp(query, 'gi'), (match) => `<span class="highlight">${match}</span>`);
+                    } else {
+                        dom.highlights.innerHTML = '';
+                    }
+                }
+            });
+            dom.textEditor.addEventListener('scroll', syncScroll);
+            dom.textEditor.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = dom.textEditor.selectionStart;
+                    dom.textEditor.value = dom.textEditor.value.substring(0, start) + '\t' + dom.textEditor.value.substring(dom.textEditor.selectionEnd);
+                    dom.textEditor.selectionStart = dom.textEditor.selectionEnd = start + 1;
+                }
+            });
+
+            // Eventos do Explorador e Chatbot
+            document.getElementById('show-explorer').addEventListener('click', () => {
+                dom.fileExplorer.classList.toggle('visible');
+                dom.resizer.style.display = dom.fileExplorer.classList.contains('visible') ? 'block' : 'none';
+            });
+            dom.toggleChatbotBtn.addEventListener('click', () => {
+                dom.chatbotPanel.classList.toggle('visible');
+                dom.chatbotResizer.classList.toggle('visible');
+            });
+            
+            // Eventos do Diário
+            document.getElementById('toggle-diary-btn').addEventListener('click', () => {
+                dom.diaryPanel.classList.toggle('visible');
+                dom.diaryResizer.style.display = dom.diaryPanel.classList.contains('visible') ? 'block' : 'none';
+            });
+            dom.diaryNewBtn.addEventListener('click', () => diaryLogic.showForm());
+            dom.diarySaveBtn.addEventListener('click', diaryLogic.saveEntry);
+            dom.diaryCancelBtn.addEventListener('click', diaryLogic.hideForm);
+            dom.diaryExportBtn.addEventListener('click', diaryLogic.exportDiary);
+            dom.diaryImportBtn.addEventListener('click', diaryLogic.importDiary);
+            
+            document.getElementById('new-file-explorer').addEventListener('click', () => initNewItemInExplorer(false));
+            document.getElementById('new-folder-explorer').addEventListener('click', () => initNewItemInExplorer(true));
+            document.getElementById('nav-back').addEventListener('click', () => { if (state.navigationHistory.length > 0) loadDirectory(state.navigationHistory.pop(), false); });
+            dom.fileTree.addEventListener('keydown', (e) => { if (e.key === 'Delete') handleDeleteSelectedItem(); });
+
+            // Eventos de Menus
+            document.getElementById('file-menu').addEventListener('click', (e) => { e.stopPropagation(); dom.fileSubmenu.classList.toggle('show-submenu'); dom.themeSubmenu.classList.remove('show-submenu'); });
+            document.getElementById('theme-menu').addEventListener('click', (e) => { e.stopPropagation(); dom.themeSubmenu.classList.toggle('show-submenu'); dom.fileSubmenu.classList.remove('show-submenu'); });
+            document.addEventListener('click', () => { dom.fileSubmenu.classList.remove('show-submenu'); dom.themeSubmenu.classList.remove('show-submenu'); });
+
+            dom.fileSubmenu.addEventListener('click', async (e) => {
+                const action = e.target.closest('.submenu-item')?.dataset.action;
+                if (!action) return;
+                
+                if (action === 'new-file') createNewFile();
+                if (action === 'open-file') dom.fileInput.click();
+                if (action === 'open-folder') {
+                    const r = await ipcRenderer.invoke('select-folder'); 
+                    if (r && !r.canceled && r.filePaths[0]) loadDirectory(r.filePaths[0]);
+                }
+                if (action === 'save-file') handleSave(false);
+                if (action === 'save-as') handleSave(true);
+                
+                dom.fileSubmenu.classList.remove('show-submenu');
+            });
+            
+            // MODIFICADO: Salva o tema no localStorage sempre que ele é alterado
+                  dom.themeSubmenu.addEventListener('click', (e) => {
+                if (e.target.closest('.submenu-item')) {
+                    const themeItem = e.target.closest('.submenu-item');
+                    const theme = themeItem.dataset.theme;
+                    if (theme === 'custom') {
+                        themeLogic.uploadCustomTheme();
+                    } else {
+                        dom.body.className = `theme-${theme}`;
+                        localStorage.setItem('arys-editor-theme', `theme-${theme}`);
+                    }
+                    dom.themeSubmenu.classList.remove('show-submenu'); 
+                }
+            });; 
+            };
+            
+            // Eventos de Sistema e IPC
+            document.getElementById('terminal-toggle').addEventListener('click', () => {
+                dom.terminalContainer.classList.toggle('visible');
+                if (dom.terminalContainer.classList.contains('visible')) {
+                    dom.terminal.focus();
+                }
+            });
+            document.getElementById('tools-menu').addEventListener('click', () => ipcRenderer.send('open-tools-window'));
+            
+            // Eventos de Autenticação
+            document.getElementById('auth-toggle').addEventListener('click', () => {
+                if (state.auth.isLoggedIn) {
+                    authLogic.logout();
+                } else {
+                    authLogic.showAuth();
+                }
+            });
+            dom.authForm.addEventListener('submit', authLogic.handleSubmit);
+            dom.authSwitchLink.addEventListener('click', authLogic.toggleMode);
+            
+            dom.fileInput.addEventListener('change', (e) => { if (e.target.files[0]) openFile(e.target.files[0].path); e.target.value = ''; });
+            document.getElementById('close-btn').addEventListener('click', () => ipcRenderer.send('close-window'));
+            document.getElementById('minimize-btn').addEventListener('click', () => ipcRenderer.send('minimize-window'));
+            document.getElementById('maximize-btn').addEventListener('click', () => ipcRenderer.send('toggle-maximize'));
+
+            ipcRenderer.on('window-state-change', (_, isMaximized) => {
+                const maxBtnIcon = document.querySelector('#maximize-btn svg');
+                maxBtnIcon.innerHTML = isMaximized ? `<polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>` : `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>`;
+            });
+
+            ipcRenderer.on('saida-comando', (event, data) => {
+                if(data){
+                    const lines = data.trimEnd().split('\n');
+                    lines.forEach(line => {
+                        terminalLogic.appendLine(line);
+                    });
+                }
+            });
+
+            // Inicialização dos módulos
+            initResizer(dom.resizer, dom.fileExplorer);
+            initResizer(dom.diaryResizer, dom.diaryPanel);
+            initResizer(dom.chatbotResizer, dom.chatbotPanel);
+            initResizer(dom.terminalResizer, dom.terminalContainer, true);
+            initSearch();
+            initChatbot(); // Inicia o chatbot
+            terminalLogic.init(); // Inicia o terminal
+            toggleWelcomePage(true);
+            updateLineNumbers();
+        
+
+        // Inicia a aplicação
+        init();
+    </script>
+</body>
+</html>

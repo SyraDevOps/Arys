@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Terminal Futurista Syra</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    font-family: 'Share Tech Mono', monospace;
+    color: #00ff99;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #terminal {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    outline: none;
+    caret-color: #00ff99;
+    font-size: 16px;
+    line-height: 1.5em;
+    user-select: text;
+    text-shadow:
+      0 0 5px #00ff99,
+      0 0 10px #00ff99,
+      0 0 20px #00ff99,
+      0 0 40px #00ff99;
+  }
+
+  .line {
+    display: block;
+  }
+
+  .prompt {
+    color: #00ff99;
+  }
+
+  /* Cursor piscando personalizado */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .cursor {
+    display: inline-block;
+    background-color: #00ff99;
+    width: 10px;
+    height: 1.2em;
+    margin-left: 2px;
+    animation: blink 1s steps(2, start) infinite;
+    vertical-align: bottom;
+  }
+</style>
+</head>
+<body>
+  <div id="terminal" tabindex="0"></div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const terminal = document.getElementById('terminal');
+
+    // CWD vindo do main.js
+    const cwdArg = process.argv.find(arg => arg.startsWith('--cwd='));
+    const cwd = cwdArg ? decodeURIComponent(cwdArg.split('=')[1]) : undefined;
+
+    // Estado da linha atual (comando sendo digitado)
+    let currentLine = '';
+    let promptStr = '> ';
+
+    // Focus inicial para o terminal para captar teclado
+    terminal.focus();
+
+    // Adiciona linha de texto na tela
+    function appendLine(text, isPrompt = false) {
+      const lineElem = document.createElement('div');
+      lineElem.classList.add('line');
+      if (isPrompt) {
+        lineElem.innerHTML = `<span class="prompt">${promptStr}</span>${escapeHtml(text)}<span class="cursor"></span>`;
+      } else {
+        lineElem.textContent = text;
+      }
+      terminal.appendChild(lineElem);
+      terminal.scrollTop = terminal.scrollHeight;
+      return lineElem;
+    }
+
+    // Escape simples para evitar HTML injection
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, m => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[m]);
+    }
+
+    // Linha de comando atual (elemento DOM)
+    let inputLineElem = appendLine('', true);
+
+    // Atualiza texto da linha de input
+    function updateInputLine() {
+      inputLineElem.innerHTML = `<span class="prompt">${promptStr}</span>${escapeHtml(currentLine)}<span class="cursor"></span>`;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    // Executa o comando via ipc e reseta linha
+    function executarComando(cmd) {
+      if (!cmd.trim()) return;
+
+      // Remove cursor da linha atual e torna ela estática
+      inputLineElem.innerHTML = `<span class="prompt">${promptStr}</span>${escapeHtml(cmd)}`;
+
+      ipcRenderer.send('executar-comando', { comando: cmd, cwd });
+
+      // Cria nova linha para input
+      inputLineElem = appendLine('', true);
+      currentLine = '';
+    }
+
+    // Captura teclas do teclado
+    terminal.addEventListener('keydown', e => {
+      e.preventDefault();
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Caracter normal
+        currentLine += e.key;
+        updateInputLine();
+      } else if (e.key === 'Backspace') {
+        currentLine = currentLine.slice(0, -1);
+        updateInputLine();
+      } else if (e.key === 'Enter') {
+        executarComando(currentLine);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        // TODO: implementar histórico futuramente
+      }
+    });
+
+    // Recebe saída do comando e adiciona no terminal
+    ipcRenderer.on('saida-comando', (event, data) => {
+      if(data){
+        const lines = data.trimEnd().split('\n');
+        lines.forEach(line => {
+          appendLine(line);
+        });
+      }
+    });
+
+    // Linha inicial com cwd
+    appendLine(`Terminal iniciado no diretório: ${cwd || 'Home'}`);
+  </script>
+</body>
+</html>
