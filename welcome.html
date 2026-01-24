@@ -13,14 +13,14 @@
          * Estilo autônomo para uma interface de alta tecnologia.
          */
         :root {
-            --bg-primary: #0d0d0d; /* Quase preto para um visual dramático */
+            --bg-primary: #121212;
             --text-primary: #FFFFFF;
             --text-secondary: #A0A0A0;
-            --accent-color: #FF3B3B; /* Vermelho vibrante */
-            --line-color: rgba(150, 150, 150, 0.3);
-            --bg-glass: rgba(20, 20, 20, 0.7);
+            --accent-color: #a29bfe;
+            --line-color: rgba(162, 155, 254, 0.3);
+            --bg-glass: rgba(30, 30, 30, 0.7);
             --border-glass: rgba(50, 50, 50, 0.5);
-            --hover-bg: rgba(255, 59, 59, 0.1);
+            --hover-bg: rgba(162, 155, 254, 0.1);
         }
 
         html, body {
@@ -142,8 +142,8 @@
         const ctx = canvas.getContext('2d');
         let particles = [];
         
-        // Cores para as partículas: Vermelho, Branco e dois tons de Cinza
-        const PARTICLE_COLORS = ['#FF3B3B', '#FFFFFF', '#AAAAAA', '#777777'];
+        // Cores para as partículas: Violeta, Branco e dois tons de Cinza
+        const PARTICLE_COLORS = ['#a29bfe', '#FFFFFF', '#AAAAAA', '#777777'];
         const CONNECT_DISTANCE = 150; // Distância máxima para desenhar um raio
         const PARTICLE_COUNT = 80;    // Número de partículas na tela
 
