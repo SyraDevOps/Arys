@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Projetor Master - Calibração & Mapping 3D</title>
+<style>
+  :root {
+    /* Cores */
+    --bg-color: #000;
+    --primary: #a29bfe; /* Violeta do tema Arys */
+    --grid-color: rgba(162, 155, 254, 0.5);
+
+    /* Variáveis da Malha */
+    --grid-size: 50px;
+    --grid-weight: 1px;
+    --grid-display: block;
+
+    /* Variáveis de Geometria (Crop) */
+    --crop-top: 0%;
+    --crop-bottom: 0%;
+    --crop-left: 0%;
+    --crop-right: 0%;
+
+    /* Variáveis 3D */
+    --perspective: 1000px;
+    --rotate-x: 0deg;
+    --rotate-y: 0deg;
+    --rotate-z: 0deg;
+    --scale: 1;
+    --trans-x: 0px;
+    --trans-y: 0px;
+
+    /* Warp (Corner Pinning) */
+    --p1x: 0%; --p1y: 0%;
+    --p2x: 100%; --p2y: 0%;
+    --p3x: 100%; --p3y: 100%;
+    --p4x: 0%; --p4y: 100%;
+  }
+
+  body {
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-color);
+    overflow: hidden;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: white;
+    perspective: var(--perspective);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* O PALCO */
+  #stage-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    background: #000;
+  }
+
+  #stage {
+    position: absolute;
+    top: var(--crop-top);
+    bottom: var(--crop-bottom);
+    left: var(--crop-left);
+    right: var(--crop-right);
+    transform-style: preserve-3d;
+    transform:
+      translate3d(var(--trans-x), var(--trans-y), 0)
+      rotateX(var(--rotate-x))
+      rotateY(var(--rotate-y))
+      rotateZ(var(--rotate-z))
+      scale(var(--scale));
+    border: 1px dashed rgba(255,255,255,0.1);
+    transition: transform 0.1s linear;
+    pointer-events: auto;
+  }
+
+  /* Modos de Projeção Especial */
+  body.mode-pyramid #stage { display: none; }
+  .pyramid-stage {
+    display: none;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  body.mode-pyramid .pyramid-stage { display: block; }
+
+  .pyramid-face {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    transform-origin: center;
+  }
+  .face-top { top: 5%; left: 50%; transform: translateX(-50%) rotate(180deg); }
+  .face-bottom { bottom: 5%; left: 50%; transform: translateX(-50%) rotate(0deg); }
+  .face-left { left: 5%; top: 50%; transform: translateY(-50%) rotate(90deg); }
+  .face-right { right: 5%; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+
+  body.mode-dual #stage { width: 45%; right: auto; left: 2.5%; }
+  .dual-stage {
+    display: none;
+    position: absolute;
+    width: 45%;
+    height: 80%;
+    right: 2.5%;
+    top: 10%;
+    border: 1px dashed rgba(255,255,255,0.1);
+  }
+  body.mode-dual .dual-stage { display: block; }
+
+  /* MALHA (GRID) */
+  .grid-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    display: var(--grid-display);
+    border: 2px solid var(--primary);
+    box-sizing: border-box;
+    background-image:
+      linear-gradient(to right, var(--grid-color) var(--grid-weight), transparent var(--grid-weight)),
+      linear-gradient(to bottom, var(--grid-color) var(--grid-weight), transparent var(--grid-weight));
+    background-size: var(--grid-size) var(--grid-size);
+  }
+
+  /* Linhas centrais */
+  .grid-layer::before, .grid-layer::after {
+    content: "";
+    position: absolute;
+    background: rgba(255, 0, 0, 0.6);
+    z-index: 11;
+  }
+  .grid-layer::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+  .grid-layer::after { height: 2px; width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+
+  /* CAMADA DE MÍDIA */
+  .media-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    background: #000;
+    cursor: pointer;
+    clip-path: polygon(
+      var(--p1x) var(--p1y),
+      var(--p2x) var(--p2y),
+      var(--p3x) var(--p3y),
+      var(--p4x) var(--p4y)
+    );
+  }
+
+  .media-layer img,
+  .media-layer video,
+  .media-layer canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .placeholder-text {
+    text-align: center;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  .placeholder-text h1 { margin: 0; font-size: 1.5rem; color: var(--primary); }
+
+  /* PAINEL DE CONTROLE */
+  .panel {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    width: 300px;
+    max-height: 95vh;
+    background: rgba(15, 15, 15, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 1000;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .panel.minimized { transform: translateX(-320px); }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+  }
+
+  .btn-icon {
+    background: #222;
+    border: 1px solid #444;
+    color: white;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .btn-icon:hover { background: #333; border-color: var(--primary); }
+
+  #show-panel-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1001;
+    display: none;
+    background: var(--primary);
+    color: #000;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(162, 155, 254, 0.3);
+  }
+
+  .control-group {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 15px;
+  }
+
+  .control-group h4 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 11px;
+  }
+
+  .control-row label { width: 80px; flex-shrink: 0; color: #aaa; }
+
+  .control-row input[type="range"] {
+    flex: 1;
+    margin: 0 10px;
+    accent-color: var(--primary);
+  }
+
+  .control-row input[type="number"] {
+    width: 50px;
+    background: #111;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 4px;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  .back-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 12px;
+    margin-bottom: 15px;
+    transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--primary); }
+
+  /* Tab System */
+  .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+  .tab-btn {
+    flex: 1;
+    padding: 8px;
+    font-size: 10px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #888;
+    cursor: pointer;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .tab-btn.active { background: var(--primary); color: #000; border-color: var(--primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+</style>
+</head>
+<body>
+
+<button id="show-panel-btn" onclick="togglePanel()">⚙ CONFIG</button>
+
+<input type="file" id="fileInput" accept="image/*,video/*,.stl,.3ds" style="display:none">
+
+<div id="stage-container">
+  <!-- Palco Principal -->
+  <div id="stage">
+    <div class="media-layer" onclick="triggerUpload()" id="dropZone">
+      <div class="placeholder-text" id="placeholder">
+        <h1>AREA DE PROJEÇÃO</h1>
+        <p>Clique ou Arraste arquivo aqui<br>(Vídeo, Imagem ou STL)</p>
+      </div>
+    </div>
+    <div class="grid-layer"></div>
+  </div>
+
+  <!-- Palco Pirâmide (Réplicas) -->
+  <div class="pyramid-stage" id="pyramid-stage">
+     <div class="pyramid-face face-top"></div>
+     <div class="pyramid-face face-bottom"></div>
+     <div class="pyramid-face face-left"></div>
+     <div class="pyramid-face face-right"></div>
+  </div>
+
+  <!-- Palco Dual -->
+  <div class="dual-stage" id="dual-stage"></div>
+</div>
+
+<div class="panel" id="mainPanel">
+  <a href="../tools.html" class="back-link">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Voltar
+  </a>
+
+  <div class="panel-header">
+    <strong>PROJETOR MASTER</strong>
+    <button class="btn-icon" onclick="togglePanel()">—</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('tab-geo')">GEO</button>
+    <button class="tab-btn" onclick="showTab('tab-3d')">3D</button>
+    <button class="tab-btn" onclick="showTab('tab-out')">MODOS</button>
+  </div>
+
+  <div id="tab-geo" class="tab-content active">
+    <div class="control-group">
+      <h4>Malha / Grid</h4>
+      <div class="control-row">
+        <label>Mostrar</label>
+        <input type="checkbox" id="checkGrid" checked onchange="toggleGrid(this)">
+      </div>
+      <div class="control-row">
+        <label>Tamanho</label>
+        <input type="range" min="10" max="500" value="50" oninput="updateCSS('--grid-size', this.value, 'px', 'numGridSize')">
+        <input type="number" id="numGridSize" value="50" onchange="updateCSS('--grid-size', this.value, 'px', null, true)">
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h4>Crop (Bordas)</h4>
+      <div class="control-row">
+        <label>Topo</label>
+        <input type="range" min="0" max="100" value="0" oninput="updateCSS('--crop-top', this.value, '%', 'numCropT')">
+        <input type="number" id="numCropT" value="0" onchange="updateCSS('--crop-top', this.value, '%', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Baixo</label>
+        <input type="range" min="0" max="100" value="0" oninput="updateCSS('--crop-bottom', this.value, '%', 'numCropB')">
+        <input type="number" id="numCropB" value="0" onchange="updateCSS('--crop-bottom', this.value, '%', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Esq.</label>
+        <input type="range" min="0" max="100" value="0" oninput="updateCSS('--crop-left', this.value, '%', 'numCropL')">
+        <input type="number" id="numCropL" value="0" onchange="updateCSS('--crop-left', this.value, '%', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Dir.</label>
+        <input type="range" min="0" max="100" value="0" oninput="updateCSS('--crop-right', this.value, '%', 'numCropR')">
+        <input type="number" id="numCropR" value="0" onchange="updateCSS('--crop-right', this.value, '%', null, true)">
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h4>Warp (Corner Pin)</h4>
+      <div class="control-row">
+        <label>Superior Esq.</label>
+        <input type="range" min="0" max="100" value="0" style="width:50%" oninput="updateCSS('--p1x', this.value, '%')">
+        <input type="range" min="0" max="100" value="0" style="width:50%" oninput="updateCSS('--p1y', this.value, '%')">
+      </div>
+      <div class="control-row">
+        <label>Superior Dir.</label>
+        <input type="range" min="0" max="100" value="100" style="width:50%" oninput="updateCSS('--p2x', this.value, '%')">
+        <input type="range" min="0" max="100" value="0" style="width:50%" oninput="updateCSS('--p2y', this.value, '%')">
+      </div>
+      <div class="control-row">
+        <label>Inferior Dir.</label>
+        <input type="range" min="0" max="100" value="100" style="width:50%" oninput="updateCSS('--p3x', this.value, '%')">
+        <input type="range" min="0" max="100" value="100" style="width:50%" oninput="updateCSS('--p3y', this.value, '%')">
+      </div>
+      <div class="control-row">
+        <label>Inferior Esq.</label>
+        <input type="range" min="0" max="100" value="0" style="width:50%" oninput="updateCSS('--p4x', this.value, '%')">
+        <input type="range" min="0" max="100" value="100" style="width:50%" oninput="updateCSS('--p4y', this.value, '%')">
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-3d" class="tab-content">
+    <div class="control-group">
+      <h4>Transformação 3D</h4>
+      <div class="control-row">
+        <label>Scale</label>
+        <input type="range" min="0.1" max="5" step="0.01" value="1" oninput="updateCSS('--scale', this.value, '', 'numScale')">
+        <input type="number" id="numScale" value="1" step="0.1" onchange="updateCSS('--scale', this.value, '', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Pos X</label>
+        <input type="range" min="-1000" max="1000" value="0" oninput="updateCSS('--trans-x', this.value, 'px', 'numTX')">
+        <input type="number" id="numTX" value="0" onchange="updateCSS('--trans-x', this.value, 'px', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Pos Y</label>
+        <input type="range" min="-1000" max="1000" value="0" oninput="updateCSS('--trans-y', this.value, 'px', 'numTY')">
+        <input type="number" id="numTY" value="0" onchange="updateCSS('--trans-y', this.value, 'px', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Rot X</label>
+        <input type="range" min="-180" max="180" value="0" oninput="updateCSS('--rotate-x', this.value, 'deg', 'numRX')">
+        <input type="number" id="numRX" value="0" onchange="updateCSS('--rotate-x', this.value, 'deg', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Rot Y</label>
+        <input type="range" min="-180" max="180" value="0" oninput="updateCSS('--rotate-y', this.value, 'deg', 'numRY')">
+        <input type="number" id="numRY" value="0" onchange="updateCSS('--rotate-y', this.value, 'deg', null, true)">
+      </div>
+      <div class="control-row">
+        <label>Rot Z</label>
+        <input type="range" min="-180" max="180" value="0" oninput="updateCSS('--rotate-z', this.value, 'deg', 'numRZ')">
+        <input type="number" id="numRZ" value="0" onchange="updateCSS('--rotate-z', this.value, 'deg', null, true)">
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-out" class="tab-content">
+    <div class="control-group">
+      <h4>Modo de Projeção</h4>
+      <select id="projMode" onchange="changeMode(this.value)" style="width:100%; background:#111; color:white; border:1px solid #333; padding:8px; border-radius:4px;">
+        <option value="simple">Simples (Tela Cheia)</option>
+        <option value="pyramid">Pirâmide Holográfica (4 faces)</option>
+        <option value="dual">Lado a Lado (Split)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <h4>Mídia</h4>
+      <div id="videoControls" style="display:none; gap:10px; margin-top:10px;">
+        <button class="btn-icon" onclick="controlVideo('play')">▶</button>
+        <button class="btn-icon" onclick="controlVideo('pause')">||</button>
+        <button class="btn-icon" onclick="controlVideo('reset')">↺</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <button class="btn-icon" style="width:100%; margin-bottom:10px;" onclick="saveConfig()">Salvar Preset</button>
+    <button class="btn-icon" style="width:100%; background: #4a1a1a;" onclick="resetAll()">Resetar Tudo</button>
+  </div>
+</div>
+
+<script>
+  function updateCSS(varName, value, unit, syncInputId, isFromInput = false) {
+    document.documentElement.style.setProperty(varName, value + unit);
+    if (syncInputId) document.getElementById(syncInputId).value = value;
+    if(isFromInput) {
+       const ranges = document.querySelectorAll(`input[type=range]`);
+       ranges.forEach(r => {
+         const attr = r.getAttribute('oninput');
+         if(attr && attr.includes(varName)) r.value = value;
+       });
+    }
+    saveStateAuto();
+  }
+
+  function toggleGrid(checkbox) {
+    const val = checkbox.checked ? 'block' : 'none';
+    document.documentElement.style.setProperty('--grid-display', val);
+    saveStateAuto();
+  }
+
+  function togglePanel() {
+    const panel = document.getElementById('mainPanel');
+    const btn = document.getElementById('show-panel-btn');
+    if (panel.classList.contains('minimized')) {
+      panel.classList.remove('minimized');
+      btn.style.display = 'none';
+    } else {
+      panel.classList.add('minimized');
+      btn.style.display = 'block';
+    }
+  }
+
+  function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function resetAll() {
+    if(confirm("Deseja resetar todas as configurações?")) {
+      localStorage.removeItem('projectorState');
+      location.reload();
+    }
+  }
+
+  const fileInput = document.getElementById('fileInput');
+  const dropZone = document.getElementById('dropZone');
+
+  function triggerUpload() { fileInput.click(); }
+  fileInput.addEventListener('change', (e) => { if(e.target.files.length) loadFile(e.target.files[0]); });
+
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+  });
+
+  let currentVideo = null;
+
+  function loadFile(file) {
+    const url = URL.createObjectURL(file);
+    const ext = file.name.split('.').pop().toLowerCase();
+    const type = file.type.split('/')[0];
+
+    dropZone.innerHTML = '';
+    document.getElementById('videoControls').style.display = 'none';
+    currentVideo = null;
+
+    if (ext === 'stl' || ext === '3ds') {
+       dropZone.innerHTML = '<h1>Modelo 3D Detectado</h1><p>Carregando visualizador...</p>';
+       init3D(url, ext);
+    } else if (type === 'image') {
+      const img = document.createElement('img');
+      img.src = url;
+      dropZone.appendChild(img);
+    } else if (type === 'video') {
+      const vid = document.createElement('video');
+      vid.src = url;
+      vid.autoplay = true;
+      vid.loop = true;
+      vid.muted = true;
+      dropZone.appendChild(vid);
+      currentVideo = vid;
+      document.getElementById('videoControls').style.display = 'flex';
+    }
+    updateSpecialModes();
+  }
+
+  function controlVideo(action) {
+    if(!currentVideo) return;
+    if(action === 'play') currentVideo.play();
+    if(action === 'pause') currentVideo.pause();
+    if(action === 'reset') currentVideo.currentTime = 0;
+  }
+
+  function changeMode(mode) {
+    document.body.className = '';
+    if (mode !== 'simple') document.body.classList.add('mode-' + mode);
+    updateSpecialModes();
+    saveStateAuto();
+  }
+
+  function updateSpecialModes() {
+    const mode = document.getElementById('projMode').value;
+    const source = document.getElementById('dropZone');
+
+    if (mode === 'pyramid') {
+       document.querySelectorAll('.pyramid-face').forEach(face => {
+          face.innerHTML = '';
+          const clone = source.cloneNode(true);
+          if (currentVideo) {
+            const vid = clone.querySelector('video');
+            if (vid) {
+              vid.currentTime = currentVideo.currentTime;
+              vid.play();
+            }
+          }
+          face.appendChild(clone);
+       });
+    } else if (mode === 'dual') {
+       const dualContainer = document.getElementById('dual-stage');
+       dualContainer.innerHTML = '';
+       dualContainer.appendChild(source.cloneNode(true));
+    }
+  }
+
+  // Persistência
+  function saveConfig() {
+    saveStateAuto();
+    alert("Preset salvo com sucesso!");
+  }
+
+  function saveStateAuto() {
+    const vars = {};
+    const styles = getComputedStyle(document.documentElement);
+    // Lista de variáveis para salvar
+    const toSave = ['--grid-size', '--grid-weight', '--grid-display', '--crop-top', '--crop-bottom', '--crop-left', '--crop-right', '--scale', '--trans-x', '--trans-y', '--rotate-x', '--rotate-y', '--rotate-z', '--perspective', '--p1x', '--p1y', '--p2x', '--p2y', '--p3x', '--p3y', '--p4x', '--p4y'];
+    toSave.forEach(v => {
+      vars[v] = document.documentElement.style.getPropertyValue(v) || styles.getPropertyValue(v);
+    });
+    localStorage.setItem('projectorState', JSON.stringify(vars));
+  }
+
+  function loadState() {
+    const saved = localStorage.getItem('projectorState');
+    if(saved) {
+      const vars = JSON.parse(saved);
+      Object.entries(vars).forEach(([k, v]) => {
+        document.documentElement.style.setProperty(k, v);
+
+        // Sincroniza sliders e numbers
+        const baseName = k.replace('--', '');
+        const inputs = document.querySelectorAll(`input`);
+        inputs.forEach(input => {
+          const oninput = input.getAttribute('oninput');
+          if (oninput && oninput.includes(k)) {
+            input.value = parseFloat(v);
+          }
+          if (input.id && input.id.toLowerCase().includes(baseName.replace(/-/g,''))) {
+             input.value = parseFloat(v);
+          }
+        });
+      });
+    }
+  }
+
+  window.onload = loadState;
+
+  // Atalhos
+  window.addEventListener('keydown', (e) => {
+    if(e.key.toLowerCase() === 'g') {
+      const cb = document.getElementById('checkGrid');
+      cb.checked = !cb.checked;
+      toggleGrid(cb);
+    }
+    if(e.key.toLowerCase() === 'p') togglePanel();
+    if(e.key.toLowerCase() === 'f') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+    if (e.key.toLowerCase() === 'r') resetAll();
+  });
+
+  // --- LOGICA THREE.JS PARA 3D ---
+  let scene, camera, renderer, mesh, stlLoader, tdsLoader;
+  let is3DActive = false;
+
+  async function init3D(url, extension) {
+    if (!scene) {
+      const THREE = await import('three');
+      window.THREE = THREE;
+      const { STLLoader } = await import('three/addons/loaders/STLLoader.js');
+      const { TDSLoader } = await import('three/addons/loaders/TDSLoader.js');
+
+      stlLoader = new STLLoader();
+      tdsLoader = new TDSLoader();
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, dropZone.clientWidth / dropZone.clientHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(dropZone.clientWidth, dropZone.clientHeight);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+      sunLight.position.set(5, 5, 5);
+      scene.add(sunLight);
+
+      camera.position.z = 5;
+    }
+
+    is3DActive = true;
+    dropZone.innerHTML = '';
+    dropZone.appendChild(renderer.domElement);
+
+    if (mesh) scene.remove(mesh);
+
+    const onLoad = (object) => {
+      if (extension === 'stl') {
+        const material = new THREE.MeshStandardMaterial({ color: 0x7b68ee, roughness: 0.5, metalness: 0.5 });
+        mesh = new THREE.Mesh(object, material);
+      } else {
+        mesh = object;
+      }
+
+      // Centralizar e ajustar escala automática
+      const box = new THREE.Box3().setFromObject(mesh);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 3 / maxDim;
+      mesh.scale.set(scale, scale, scale);
+      mesh.position.sub(center.multiplyScalar(scale));
+
+      scene.add(mesh);
+      animate3D();
+    };
+
+    if (extension === 'stl') {
+      stlLoader.load(url, onLoad);
+    } else if (extension === '3ds') {
+      tdsLoader.load(url, onLoad);
+    }
+  }
+
+  function animate3D() {
+    if (!is3DActive) return;
+    requestAnimationFrame(animate3D);
+
+    if (mesh) {
+      // Sincroniza rotação com as variáveis CSS (opcional, ou usa as próprias do Three)
+      const rx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rotate-x')) || 0;
+      const ry = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rotate-y')) || 0;
+      const rz = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rotate-z')) || 0;
+
+      mesh.rotation.x = rx * (Math.PI / 180);
+      mesh.rotation.y = ry * (Math.PI / 180);
+      mesh.rotation.z = rz * (Math.PI / 180);
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  // Import Map para facilitar
+  const scriptMap = document.createElement('script');
+  scriptMap.type = 'importmap';
+  scriptMap.textContent = JSON.stringify({
+    "imports": {
+      "three": "../node_modules/three/build/three.module.js",
+      "three/addons/": "../node_modules/three/examples/jsm/"
+    }
+  });
+  document.head.appendChild(scriptMap);
+
+</script>
+
+</body>
+</html>
