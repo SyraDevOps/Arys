@@ -126,13 +126,23 @@
         .new-item-input { flex-grow: 1; background: var(--bg-primary); border: 1px solid var(--accent-color); color: var(--text-primary); font-family: 'Inter'; border-radius: 4px; outline: none; padding: 2px 4px; }
 
         .editor-container { display: flex; background: var(--bg-primary); height: 100%; width: 100%; position: relative; }
-        .editor-wrapper { flex: 1; position: relative; display: flex; min-width: 0; }
-        #editor-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 15px; overflow: hidden; pointer-events: none; white-space: pre-wrap; word-wrap: break-word; }
-        #highlights, #text-editor, .line-numbers { font-family: 'Fira Code', monospace; font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; font-feature-settings: "liga" 1, "calt" 1; }
-        #highlights .highlight { background-color: var(--highlight-bg); border-radius: 2px; }
-        #highlights .highlight.active { background-color: var(--highlight-active-bg); }
-        .line-numbers { padding: 15px 10px; background: var(--bg-primary); color: var(--text-muted); text-align: right; overflow-y: hidden; }
-        #text-editor { position: relative; z-index: 1; flex: 1; padding: 15px; border: none; background: transparent; color: var(--text-primary); resize: none; outline: none; width: 100%; user-select: text; }
+        #monaco-editor {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .monaco-editor .search-highlight {
+            background-color: var(--highlight-bg);
+            border-radius: 2px;
+        }
+        .monaco-editor .search-highlight-active {
+            background-color: var(--highlight-active-bg);
+            border-radius: 2px;
+        }
 
         .search-bar { position: absolute; top: 10px; right: 20px; z-index: 10; background: var(--bg-secondary); padding: 8px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-color); }
         .search-bar.hidden { display: none; }
@@ -770,11 +780,7 @@
             <div class="editor-section">
                 <div class="editor-container">
                     <iframe id="welcome-frame" src="welcome.html" style="display: none; width: 100%; height: 100%; border: none;"></iframe>
-                    <div class="line-numbers"></div>
-                    <div class="editor-wrapper">
-                        <div id="editor-backdrop"><div id="highlights"></div></div>
-                        <textarea id="text-editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
-                    </div>
+                    <div id="monaco-editor"></div>
                     <div id="search-bar" class="search-bar hidden">
                         <input type="text" id="search-input" placeholder="Buscar...">
                         <span id="search-results">0/0</span>
@@ -852,9 +858,13 @@
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
-        const fs = require('fs');
-        const path = require('path');
+        const nodeRequire = window.require;
+        window.require = undefined;
+        window.define = undefined;
+
+        const { ipcRenderer } = nodeRequire('electron');
+        const fs = nodeRequire('fs');
+        const path = nodeRequire('path');
         
         // --- CONSTANTES DE ÍCONES (SVG) ---
         const FOLDER_ICON_SVG = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
@@ -864,13 +874,10 @@
         // --- CACHE DE ELEMENTOS DOM ---
         const dom = {
             body: document.body,
-            textEditor: document.getElementById('text-editor'),
-            lineNumbers: document.querySelector('.line-numbers'),
+            monacoEditor: document.getElementById('monaco-editor'),
             fileExplorer: document.querySelector('.file-explorer'),
             fileTree: document.querySelector('.file-tree'),
             resizer: document.getElementById('explorer-resizer'),
-            highlights: document.getElementById('highlights'),
-            editorBackdrop: document.getElementById('editor-backdrop'),
             searchBar: document.getElementById('search-bar'),
             searchInput: document.getElementById('search-input'),
             searchResults: document.getElementById('search-results'),
@@ -937,6 +944,7 @@
             search: {
                 matches: [],
                 currentIndex: -1,
+                decorations: [],
             },
             terminal: {
                 currentLine: '',
@@ -953,8 +961,210 @@
             diary: {
                 entries: [],
                 editingEntry: null,
-            }
+            },
+            isUpdatingContent: false,
         };
+
+        let editor = null;
+        let monaco = null;
+
+        const languageMap = {
+            js: 'javascript',
+            jsx: 'javascript',
+            ts: 'typescript',
+            tsx: 'typescript',
+            json: 'json',
+            html: 'html',
+            htm: 'html',
+            css: 'css',
+            scss: 'scss',
+            less: 'less',
+            md: 'markdown',
+            py: 'python',
+            rb: 'ruby',
+            php: 'php',
+            java: 'java',
+            c: 'c',
+            cpp: 'cpp',
+            h: 'cpp',
+            cs: 'csharp',
+            go: 'go',
+            rs: 'rust',
+            sh: 'shell',
+            yml: 'yaml',
+            yaml: 'yaml',
+            toml: 'toml',
+            xml: 'xml',
+            sql: 'sql',
+        };
+
+        function detectLanguage(filePath) {
+            if (!filePath) return 'plaintext';
+            const ext = path.extname(filePath).slice(1).toLowerCase();
+            return languageMap[ext] || 'plaintext';
+        }
+
+        function getEditorFont() {
+            if (!dom.monacoEditor) return "'Fira Code', monospace";
+            const style = getComputedStyle(dom.monacoEditor);
+            return style.fontFamily || "'Fira Code', monospace";
+        }
+
+        function setEditorLanguage(filePath) {
+            if (!editor || !monaco) return;
+            const model = editor.getModel();
+            if (!model) return;
+            monaco.editor.setModelLanguage(model, detectLanguage(filePath));
+        }
+
+        function setEditorContent(content, filePath = null) {
+            if (!editor) return;
+            state.isUpdatingContent = true;
+            editor.setValue(content);
+            state.isUpdatingContent = false;
+            setEditorLanguage(filePath);
+        }
+
+        function getEditorValue() {
+            return editor ? editor.getValue() : '';
+        }
+
+        function focusEditor() {
+            editor?.focus();
+        }
+
+        function clearSearchDecorations() {
+            if (!editor) return;
+            state.search.decorations = editor.deltaDecorations(state.search.decorations, []);
+        }
+
+        function applyMonacoTheme() {
+            if (!editor || !monaco) return;
+            const styles = getComputedStyle(dom.body);
+            const isLight = dom.body.classList.contains('theme-white');
+            const baseTheme = isLight ? 'vs' : 'vs-dark';
+            const background = styles.getPropertyValue('--bg-primary').trim() || (isLight ? '#ffffff' : '#1e1e1e');
+            const foreground = styles.getPropertyValue('--text-primary').trim() || (isLight ? '#1f1f1f' : '#d4d4d4');
+            const muted = styles.getPropertyValue('--text-muted').trim() || '#858585';
+            const secondary = styles.getPropertyValue('--text-secondary').trim() || '#cccccc';
+            const accent = styles.getPropertyValue('--accent-color').trim() || '#7b68ee';
+            const border = styles.getPropertyValue('--border-color').trim() || '#3c3c3c';
+            const widgetBg = styles.getPropertyValue('--bg-secondary').trim() || '#252526';
+            const hoverBg = styles.getPropertyValue('--hover-bg').trim() || '#3a3d41';
+            const selection = styles.getPropertyValue('--selection-bg').trim() || 'rgba(123, 104, 238, 0.2)';
+            const lineHighlight = styles.getPropertyValue('--bg-tertiary').trim() || '#2d2d2d';
+
+            monaco.editor.defineTheme('arys-theme', {
+                base: baseTheme,
+                inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': background,
+                    'editor.foreground': foreground,
+                    'editorLineNumber.foreground': muted,
+                    'editorLineNumber.activeForeground': secondary,
+                    'editorCursor.foreground': accent,
+                    'editor.selectionBackground': selection,
+                    'editor.inactiveSelectionBackground': selection,
+                    'editor.lineHighlightBackground': lineHighlight,
+                    'editorIndentGuide.background': border,
+                    'editorIndentGuide.activeBackground': accent,
+                    'editorWidget.background': widgetBg,
+                    'editorWidget.border': border,
+                    'editorSuggestWidget.background': widgetBg,
+                    'editorSuggestWidget.border': border,
+                    'editorSuggestWidget.foreground': foreground,
+                    'editorSuggestWidget.selectedBackground': hoverBg,
+                    'editorHoverWidget.background': widgetBg,
+                    'editorHoverWidget.border': border,
+                },
+            });
+
+            editor.updateOptions({
+                fontFamily: getEditorFont(),
+                fontLigatures: true,
+            });
+            monaco.editor.setTheme('arys-theme');
+        }
+
+        async function loadMonaco() {
+            if (monaco) return monaco;
+            const monacoBaseUrl = 'https://unpkg.com/monaco-editor@0.50.0/min';
+            window.MonacoEnvironment = {
+                getWorkerUrl: () => {
+                    const workerSource = `
+                        self.MonacoEnvironment = { baseUrl: '${monacoBaseUrl}' };
+                        importScripts('${monacoBaseUrl}/vs/base/worker/workerMain.js');
+                    `;
+                    return `data:text/javascript;charset=utf-8,${encodeURIComponent(workerSource)}`;
+                },
+            };
+
+            return new Promise((resolve, reject) => {
+                const loaderScript = document.createElement('script');
+                loaderScript.src = `${monacoBaseUrl}/vs/loader.js`;
+                loaderScript.onload = () => {
+                    window.require.config({ paths: { vs: `${monacoBaseUrl}/vs` } });
+                    window.require(['vs/editor/editor.main'], () => {
+                        monaco = window.monaco;
+                        resolve(monaco);
+                    }, reject);
+                };
+                loaderScript.onerror = reject;
+                document.body.appendChild(loaderScript);
+            });
+        }
+
+        async function initMonacoEditor() {
+            await loadMonaco();
+            editor = monaco.editor.create(dom.monacoEditor, {
+                value: '',
+                language: 'plaintext',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontFamily: getEditorFont(),
+                fontSize: 14,
+                lineHeight: 22,
+                quickSuggestions: true,
+                suggestOnTriggerCharacters: true,
+                wordBasedSuggestions: true,
+                tabSize: 2,
+                insertSpaces: true,
+            });
+
+            monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
+            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+                target: monaco.languages.typescript.ScriptTarget.ES2020,
+                allowNonTsExtensions: true,
+            });
+            monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+                target: monaco.languages.typescript.ScriptTarget.ES2020,
+                allowNonTsExtensions: true,
+            });
+
+            editor.onDidChangeModelContent(() => {
+                if (state.isUpdatingContent) return;
+                if (!state.isModified) {
+                    state.isModified = true;
+                    updateTitleBar();
+                }
+                if (!dom.searchBar.classList.contains('hidden')) {
+                    const query = dom.searchInput.value;
+                    if (query) {
+                        refreshSearch(query);
+                        applySearchDecorations();
+                        updateSearchResults();
+                    } else {
+                        clearSearchDecorations();
+                        dom.searchResults.textContent = '0/0';
+                    }
+                }
+            });
+
+            applyMonacoTheme();
+        }
 
         // NOVO: Função para carregar preferências salvas
         function loadPreferences() {
@@ -962,6 +1172,9 @@
             const savedTheme = localStorage.getItem('arys-editor-theme');
             if (savedTheme) {
                 dom.body.className = savedTheme;
+                if (savedTheme === 'theme-custom') {
+                    themeLogic.loadCustomTheme();
+                }
             }
             // Carrega token de autenticação
             const savedToken = localStorage.getItem('syra-auth-token');
@@ -1202,7 +1415,7 @@
                         css += `.theme-custom { font-family: ${theme.fonts.primary}; }\n`;
                     }
                     if (theme.fonts.code) {
-                        css += `.theme-custom .editor-textarea, .theme-custom .terminal, .theme-custom .diary-code-input, .theme-custom .diary-entry-code { font-family: ${theme.fonts.code}; }\n`;
+                        css += `.theme-custom .editor-textarea, .theme-custom .monaco-editor, .theme-custom .terminal, .theme-custom .diary-code-input, .theme-custom .diary-entry-code { font-family: ${theme.fonts.code}; }\n`;
                     }
                 }
                 
@@ -1222,6 +1435,7 @@
                 
                 // Aplica o tema
                 dom.body.className = 'theme-custom';
+                applyMonacoTheme();
             },
 
             loadCustomTheme: () => {
@@ -1537,48 +1751,80 @@
         }
 
         function createNewFile() {
-            dom.textEditor.value = '';
+            setEditorContent('', null);
             state.currentFilePath = null;
             state.isModified = false;
-            updateLineNumbers();
+            clearSearchDecorations();
+            state.search.matches = [];
+            state.search.currentIndex = -1;
+            updateSearchResults();
             updateTitleBar();
             toggleWelcomePage(false);
-            dom.textEditor.focus();
+            focusEditor();
         }
 
         function toggleWelcomePage(show) {
             dom.welcomeFrame.style.display = show ? 'block' : 'none';
             const editorVisible = !show;
-            document.querySelector('.editor-wrapper').style.display = editorVisible ? 'flex' : 'none';
-            dom.lineNumbers.style.display = editorVisible ? 'block' : 'none';
-            if (editorVisible) dom.textEditor.focus();
+            dom.monacoEditor.style.display = editorVisible ? 'block' : 'none';
+            if (editorVisible) {
+                focusEditor();
+                editor?.layout();
+            }
         }
 
         function updateLineNumbers() {
-            const lineCount = dom.textEditor.value.split('\n').length || 1;
-            dom.lineNumbers.innerHTML = Array.from({ length: lineCount }, (_, i) => `<div>${i + 1}</div>`).join('');
-            syncScroll();
+            if (editor) editor.layout();
         }
 
         function syncScroll() {
-            dom.lineNumbers.scrollTop = dom.textEditor.scrollTop;
-            dom.editorBackdrop.scrollTop = dom.textEditor.scrollTop;
-            dom.editorBackdrop.scrollLeft = dom.textEditor.scrollLeft;
+            if (editor) editor.layout();
+        }
+
+        function refreshSearch(query) {
+            if (!editor) return;
+            const model = editor.getModel();
+            if (!model) return;
+            state.search.matches = model.findMatches(query, false, false, false, null, true);
+            state.search.currentIndex = state.search.matches.length ? Math.min(state.search.currentIndex, state.search.matches.length - 1) : -1;
+            if (state.search.currentIndex < 0 && state.search.matches.length > 0) {
+                state.search.currentIndex = 0;
+            }
+        }
+
+        function applySearchDecorations() {
+            if (!editor) return;
+            const decorations = state.search.matches.map((match, index) => ({
+                range: match.range,
+                options: {
+                    inlineClassName: index === state.search.currentIndex ? 'search-highlight-active' : 'search-highlight',
+                },
+            }));
+            state.search.decorations = editor.deltaDecorations(state.search.decorations, decorations);
+        }
+
+        function updateSearchResults() {
+            const total = state.search.matches.length;
+            const current = total > 0 ? state.search.currentIndex + 1 : 0;
+            dom.searchResults.textContent = `${current}/${total}`;
         }
 
         // --- FUNÇÕES DE ARQUIVO (Abrir, Salvar) ---
         async function openFile(filePath) {
             try {
                 const content = await fs.promises.readFile(filePath, 'utf-8');
-                dom.textEditor.value = content;
+                setEditorContent(content, filePath);
                 state.currentFilePath = filePath;
                 state.isModified = false;
+                clearSearchDecorations();
+                state.search.matches = [];
+                state.search.currentIndex = -1;
+                updateSearchResults();
                 dom.currentFolderTitle.textContent = path.basename(path.dirname(filePath));
                 dom.currentFolderTitle.title = path.dirname(filePath);
                 updateTitleBar();
-                updateLineNumbers();
                 toggleWelcomePage(false);
-                dom.textEditor.scrollTop = 0;
+                editor?.setScrollTop(0);
             } catch (err) { alert('Erro ao abrir arquivo: ' + err.message); }
         }
         
@@ -1592,12 +1838,13 @@
             }
 
             try {
-                await fs.promises.writeFile(savePath, dom.textEditor.value);
+                await fs.promises.writeFile(savePath, getEditorValue());
                 state.isModified = false;
                 if (savePath !== state.currentFilePath) {
                     state.currentFilePath = savePath;
                     dom.currentFolderTitle.textContent = path.basename(path.dirname(savePath));
                     dom.currentFolderTitle.title = path.dirname(savePath);
+                    setEditorLanguage(savePath);
                 }
                 updateTitleBar();
                 if (state.currentDirPath && path.dirname(savePath) === state.currentDirPath) {
@@ -1748,6 +1995,7 @@
                     const newWidth = panelEl.classList.contains('chatbot-panel') ? window.innerWidth - e.clientX : e.clientX;
                     panelEl.style.width = `${newWidth}px`; 
                 }
+                editor?.layout();
             });
             document.addEventListener('mouseup', () => { 
                 if(isResizing) { 
@@ -1760,40 +2008,46 @@
 
         // --- LÓGICA DA BUSCA (CTRL+F) ---
         function initSearch() {
-            const performSearch = () => {
-                const query = dom.searchInput.value;
-                if (!query) {
-                    dom.highlights.innerHTML = '';
-                    dom.searchResults.textContent = '0/0';
-                    return;
-                }
-                const regex = new RegExp(query, 'gi');
-                state.search.matches = [...dom.textEditor.value.matchAll(regex)];
-                dom.highlights.innerHTML = dom.textEditor.value.replace(regex, (match) => `<span class="highlight">${match}</span>`);
-                state.search.currentIndex = -1;
-                updateSearchResults();
-                if (state.search.matches.length > 0) scrollToMatch(0);
-            };
-            const updateSearchResults = () => dom.searchResults.textContent = `${state.search.currentIndex + 1}/${state.search.matches.length}`;
             const scrollToMatch = (index) => {
-                if(index < 0 || index >= state.search.matches.length) return;
-                state.search.currentIndex = index;
-                document.querySelectorAll('#highlights .highlight.active').forEach(el => el.classList.remove('active'));
-                const allHighlights = document.querySelectorAll('#highlights .highlight');
-                if (allHighlights[index]) allHighlights[index].classList.add('active');
-                
-                const match = state.search.matches[index];
-                const textBeforeMatch = dom.textEditor.value.substring(0, match.index);
-                const lineCount = textBeforeMatch.split('\n').length;
-                const lineHeight = parseFloat(getComputedStyle(dom.textEditor).lineHeight);
-                dom.textEditor.scrollTop = (lineCount - 5) * lineHeight;
+                if (!editor || state.search.matches.length === 0) return;
+                const safeIndex = (index + state.search.matches.length) % state.search.matches.length;
+                state.search.currentIndex = safeIndex;
+                const match = state.search.matches[safeIndex];
+                editor.setSelection(match.range);
+                editor.revealRangeInCenter(match.range);
+                applySearchDecorations();
                 updateSearchResults();
             };
 
+            const performSearch = () => {
+                const query = dom.searchInput.value;
+                if (!editor || !query) {
+                    clearSearchDecorations();
+                    state.search.matches = [];
+                    state.search.currentIndex = -1;
+                    updateSearchResults();
+                    return;
+                }
+
+                refreshSearch(query);
+                if (state.search.matches.length > 0) {
+                    scrollToMatch(0);
+                } else {
+                    clearSearchDecorations();
+                    updateSearchResults();
+                }
+            };
+
             dom.searchInput.addEventListener('input', performSearch);
-            document.getElementById('search-next').addEventListener('click', () => scrollToMatch((state.search.currentIndex + 1) % state.search.matches.length));
-            document.getElementById('search-prev').addEventListener('click', () => scrollToMatch((state.search.currentIndex - 1 + state.search.matches.length) % state.search.matches.length));
-            document.getElementById('search-close').addEventListener('click', () => dom.searchBar.classList.add('hidden'));
+            document.getElementById('search-next').addEventListener('click', () => scrollToMatch(state.search.currentIndex + 1));
+            document.getElementById('search-prev').addEventListener('click', () => scrollToMatch(state.search.currentIndex - 1));
+            document.getElementById('search-close').addEventListener('click', () => {
+                dom.searchBar.classList.add('hidden');
+                clearSearchDecorations();
+                state.search.matches = [];
+                state.search.currentIndex = -1;
+                updateSearchResults();
+            });
         }
 
         // --- LÓGICA DO CHATBOT (LUNA AI) ---
@@ -1943,9 +2197,10 @@
         };
 
         // --- INICIALIZAÇÃO E EVENT LISTENERS ---
-        function init() {
+        async function init() {
             // NOVO: Carrega as preferências do usuário ao iniciar
             loadPreferences();
+            await initMonacoEditor();
 
             // Atalhos globais
             window.addEventListener('keydown', (e) => {
@@ -1956,29 +2211,7 @@
                 }
                 if (e.key === 'Escape' && !dom.searchBar.classList.contains('hidden')) { e.preventDefault(); dom.searchBar.classList.add('hidden'); }
             });
-
-            // Eventos do Editor de Texto
-            dom.textEditor.addEventListener('input', () => {
-                if (!state.isModified) { state.isModified = true; updateTitleBar(); }
-                updateLineNumbers();
-                if (!dom.searchBar.classList.contains('hidden')) {
-                    const query = dom.searchInput.value;
-                    if(query) {
-                        dom.highlights.innerHTML = dom.textEditor.value.replace(new RegExp(query, 'gi'), (match) => `<span class="highlight">${match}</span>`);
-                    } else {
-                        dom.highlights.innerHTML = '';
-                    }
-                }
-            });
-            dom.textEditor.addEventListener('scroll', syncScroll);
-            dom.textEditor.addEventListener('keydown', (e) => {
-                if (e.key === 'Tab') {
-                    e.preventDefault();
-                    const start = dom.textEditor.selectionStart;
-                    dom.textEditor.value = dom.textEditor.value.substring(0, start) + '\t' + dom.textEditor.value.substring(dom.textEditor.selectionEnd);
-                    dom.textEditor.selectionStart = dom.textEditor.selectionEnd = start + 1;
-                }
-            });
+            window.addEventListener('resize', () => editor?.layout());
 
             // Eventos do Explorador e Chatbot
             document.getElementById('show-explorer').addEventListener('click', () => {
@@ -2028,20 +2261,19 @@
             });
             
             // MODIFICADO: Salva o tema no localStorage sempre que ele é alterado
-                  dom.themeSubmenu.addEventListener('click', (e) => {
-                if (e.target.closest('.submenu-item')) {
-                    const themeItem = e.target.closest('.submenu-item');
-                    const theme = themeItem.dataset.theme;
-                    if (theme === 'custom') {
-                        themeLogic.uploadCustomTheme();
-                    } else {
-                        dom.body.className = `theme-${theme}`;
-                        localStorage.setItem('arys-editor-theme', `theme-${theme}`);
-                    }
-                    dom.themeSubmenu.classList.remove('show-submenu'); 
+            dom.themeSubmenu.addEventListener('click', (e) => {
+                const themeItem = e.target.closest('.submenu-item');
+                if (!themeItem) return;
+                const theme = themeItem.dataset.theme;
+                if (theme === 'custom') {
+                    themeLogic.uploadCustomTheme();
+                } else {
+                    dom.body.className = `theme-${theme}`;
+                    localStorage.setItem('arys-editor-theme', `theme-${theme}`);
                 }
-            });; 
-            };
+                applyMonacoTheme();
+                dom.themeSubmenu.classList.remove('show-submenu'); 
+            });
             
             // Eventos de Sistema e IPC
             document.getElementById('terminal-toggle').addEventListener('click', () => {
@@ -2091,7 +2323,6 @@
             initChatbot(); // Inicia o chatbot
             terminalLogic.init(); // Inicia o terminal
             toggleWelcomePage(true);
-            updateLineNumbers();
         
 
         // Inicia a aplicação
